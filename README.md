@@ -7,7 +7,10 @@ Driftcord loads Discord's own web app inside a small native window, so **every f
 - **Tiny install.** A ~10 MB installer instead of a few hundred MB. Uses the WebView2 runtime that ships with Windows 10/11 instead of bundling Chromium.
 - **Debloat.** Toggle off the Nitro and Shop tabs, Quests, gift and Apps buttons, Super Reactions, Activities, upsell banners and more.
 - **Privacy.** Blocks Discord's analytics/"science" pings and crash reporting. Optional silent typing.
-- **Themes.** Five built-in themes (Stock, Drift, Midnight, Frost, Ember), a custom accent color, any installed font, and a live custom CSS box for community themes.
+- **Themes.** 15 built-in themes (Drift, Midnight, Frost, Ember, Nord, Dracula, Catppuccin, Gruvbox, Tokyo Night, Rosé Pine, Solarized, Forest, Sakura, Graphite, plus Stock), a custom accent color, any installed font, and a live custom CSS box for community themes.
+- **Modern screen share.** A share sheet (Smooth motion / Balanced / Sharp text, system audio), a floating Live bar with timer, live mode switching and Stop, "share this tab instead" switching, and a `Ctrl+Alt+S` shortcut.
+- **Vencord & Equicord.** Turn on either client mod with one click to get their full plugin libraries. Driftcord downloads the official web build and keeps it updated.
+- **Auto-updates.** The installed app checks for new Driftcord releases and updates itself in place.
 - **Desktop niceties.** Tray icon, close-to-tray, single instance, remembers window size and position, external links open in your browser.
 
 > ⚠️ Using a modified Discord client is against Discord's Terms of Service. Enforcement against client mods has historically been rare, but use Driftcord at your own risk. Driftcord is not affiliated with Discord.
@@ -46,6 +49,8 @@ The first build takes a few minutes while Rust compiles dependencies; later buil
 | Action | How |
 | --- | --- |
 | Open Driftcord settings | `Ctrl+Alt+D`, the slim tab on the right edge, or tray → *Driftcord Settings* |
+| Start / stop screen share | `Ctrl+Alt+S` (while in a voice channel) |
+| Turn on Vencord or Equicord | Settings → **Mods**, pick one, *Restart now*. Plugins then live in Discord's User Settings. |
 | Close the panel | `Esc` |
 | Quit for real | Tray icon → *Quit* (closing the window just hides it to the tray) |
 
@@ -60,10 +65,18 @@ driftcord/
 │   ├── 10-privacy.js       # Telemetry / crash report / typing blocking
 │   ├── 20-debloat.js       # Hide-clutter rules (edit selectors here)
 │   ├── 30-themes.js        # Theme palettes → Discord CSS variables
-│   ├── 40-panel.js         # The settings drawer UI
-│   └── 99-boot.js          # Wires it all together
+│   ├── 05-bridge.js        # Calls into the native app (mods, updates)
+│   ├── 40-panel.js         # The settings drawer UI and toasts
+│   ├── 50-screenshare.js   # Share sheet, Live bar, Ctrl+Alt+S
+│   ├── 60-updates.js       # Update checks and the update prompt
+│   ├── 99-boot.js          # Wires it all together
+│   └── mod-shim.js         # Userscript APIs for Vencord/Equicord
+├── src-tauri/src/
+│   ├── lib.rs              # Window, tray, commands, updater
+│   ├── mods.rs             # Mod download/cache and cross-origin fetch
+│   └── config.rs           # Native-side settings
 ├── src-tauri/
-│   ├── src/lib.rs          # Window, tray, link handling, permissions
+│   ├── capabilities/       # Which commands discord.com may call
 │   ├── tauri.conf.json     # App name, bundle and installer settings
 │   └── icons/
 └── .github/workflows/      # Builds a Windows installer on tagged releases
@@ -85,6 +98,12 @@ The `inject/` files are concatenated at compile time (see `injection_script()` i
 - RAM use is similar to running Discord in a browser tab, because it *is* Discord's web app. The savings are in install size, startup, background activity and clutter.
 - Remote `@import` lines in custom CSS may be blocked by Discord's content security policy. Paste the theme's full CSS instead.
 - Windows is the primary target. macOS and Linux should build but haven't been tested.
+
+## Updates
+
+The installer version checks `latest.json` on this repo's latest release, verifies the update's signature against the public key in `tauri.conf.json`, and installs it quietly. The portable exe doesn't self-update; download the new one or switch to the installer.
+
+Releases are signed with a private key stored in the repo secret `TAURI_SIGNING_PRIVATE_KEY`. Keep that key safe: if it's lost, existing installs can't verify new updates.
 
 ## Releasing
 

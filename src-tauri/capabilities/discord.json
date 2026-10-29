@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "discord",
+  "description": "Lets Driftcord's injected layer on discord.com talk to the app (mods, updates). Only Driftcord's own commands are exposed; no file system, shell or plugin APIs.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://discord.com/*", "https://*.discord.com/*"]
+  },
+  "permissions": [
+    "allow-get-info",
+    "allow-set-mod",
+    "allow-restart-app",
+    "allow-check-update",
+    "allow-install-update",
+    "allow-mod-fetch"
+  ]
+}

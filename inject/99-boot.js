@@ -20,13 +20,14 @@ function mountPanel() {
 // Used by the tray menu's "Driftcord Settings" item.
 window.__driftcordOpen = () => { mountPanel(); panel && panel.toggle(true); };
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountPanel, { once: true });
-else mountPanel();
+function onReady() {
+  mountPanel();
+  startUpdateChecks();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady, { once: true });
+else onReady();
 
 // Discord re-renders <body> children aggressively; re-attach if we get removed.
-new MutationObserver(() => {
-  if (panel && !panel.host.isConnected && document.body) document.body.appendChild(panel.host);
-}).observe(document.documentElement, { childList: true, subtree: false });
 setInterval(() => {
   if (panel && !panel.host.isConnected && document.body) document.body.appendChild(panel.host);
 }, 3000);

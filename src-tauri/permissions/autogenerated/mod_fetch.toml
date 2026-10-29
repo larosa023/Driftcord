@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mod-fetch"
+description = "Enables the mod_fetch command without any pre-configured scope."
+commands.allow = ["mod_fetch"]
+
+[[permission]]
+identifier = "deny-mod-fetch"
+description = "Denies the mod_fetch command without any pre-configured scope."
+commands.deny = ["mod_fetch"]

@@ -41,11 +41,17 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs updates so the in-app updater can verify them. Without this
+          # secret the build still works, just without auto-update files.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
+          args: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY == '' && '--config {"bundle":{"createUpdaterArtifacts":false}}' || '' }}
+          includeUpdaterJson: true
           tagName: v__VERSION__
           releaseName: Driftcord v__VERSION__
           releaseBody: |
-            **Download `Driftcord_*_x64-setup.exe`** to install, or `Driftcord-portable.exe` to run without installing.
+            **Download `Driftcord_*_x64-setup.exe`** to install, or `Driftcord-portable.exe` to run without installing. The installed version updates itself automatically.
 
             Windows 10/11 (64-bit). Uses the WebView2 runtime that comes with Windows. Windows may show a SmartScreen warning because the app isn't code-signed: click **More info → Run anyway**.
 

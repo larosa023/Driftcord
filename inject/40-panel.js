@@ -92,7 +92,44 @@ kbd { background: var(--d-card); border: 1px solid var(--d-line); border-bottom-
   transition: width .15s, opacity .15s; border: 0; padding: 0; }
 .edge:hover { width: 12px; opacity: .9; }
 .edge[hidden] { display: none; }
-@media (prefers-reduced-motion: reduce) { .drawer, .scrim { transition: none; } }
+
+/* Segmented control */
+.seg { display: flex; background: var(--d-card); border: 1px solid var(--d-line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { flex: 1; background: none; border: 0; color: var(--d-muted); font: inherit; font-weight: 550; font-size: 13px;
+  padding: 7px 6px; border-radius: 7px; cursor: pointer; }
+.seg button:hover { color: var(--d-text); }
+.seg button[aria-pressed="true"] { background: var(--d-accent); color: #fff; }
+
+/* Choice cards (mods, share modes) */
+.choices { display: grid; gap: 8px; }
+.choice { display: flex; gap: 12px; align-items: flex-start; text-align: left; background: var(--d-card); color: inherit; font: inherit;
+  border: 1px solid var(--d-line); border-radius: 12px; padding: 12px; cursor: pointer; }
+.choice:hover { border-color: color-mix(in srgb, var(--d-accent) 50%, var(--d-line)); }
+.choice[aria-pressed="true"] { border-color: var(--d-accent); box-shadow: 0 0 0 1px var(--d-accent); }
+.choice .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--d-off); flex: none; margin-top: 1px; }
+.choice[aria-pressed="true"] .dot { border-color: var(--d-accent); background: radial-gradient(var(--d-accent) 45%, transparent 50%); }
+.choice .t { font-weight: 600; }
+.choice .s { color: var(--d-muted); font-size: 12.5px; }
+.pill-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; margin-left: 6px;
+  background: color-mix(in srgb, var(--d-accent) 20%, transparent); color: var(--d-text); vertical-align: 1px; }
+.btn.primary { background: var(--d-accent); border-color: transparent; color: #fff; }
+.btn.primary:hover { background: color-mix(in srgb, var(--d-accent) 85%, black); }
+.btn[disabled] { opacity: .55; cursor: default; }
+.notice { background: color-mix(in srgb, var(--d-accent) 12%, var(--d-card)); border: 1px solid color-mix(in srgb, var(--d-accent) 35%, transparent);
+  border-radius: 10px; padding: 10px 12px; margin-top: 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; }
+.notice .grow { flex: 1; }
+
+/* Toasts */
+.toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 2147483647;
+  font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; pointer-events: none; }
+.toast { pointer-events: auto; background: var(--d-bg); color: var(--d-text); border: 1px solid var(--d-line); border-radius: 12px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / .4); padding: 12px 14px; min-width: 260px; max-width: 360px;
+  animation: toastIn .22s cubic-bezier(.2,.8,.2,1); }
+.toast .msg { font-weight: 550; }
+.toast .sub { color: var(--d-muted); font-size: 12.5px; margin-top: 2px; }
+.toast .btns { margin-top: 10px; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .drawer, .scrim { transition: none; } .toast { animation: none; } }
 `;
 
 const LOGO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M3 8c3-3 6 3 9 0s6 3 9 0M3 13c3-3 6 3 9 0s6 3 9 0M3 18c3-3 6 3 9 0s6 3 9 0"/></svg>';
@@ -177,7 +214,7 @@ function createPanel() {
       ];
     },
 
-    Declutter() {
+    Clean() {
       const groups = {};
       for (const r of DEBLOAT_RULES) (groups[r.group] ??= []).push(r);
       return [
@@ -185,6 +222,12 @@ function createPanel() {
           h('h2', {}, 'Hide · ' + g),
           h('div', {}, rules.map((r) => toggleRow('debloat.' + r.id, r.label))),
         ]),
+        h('h2', {}, 'Privacy'),
+        h('div', {},
+          toggleRow('privacy.telemetry', 'Block analytics & tracking', 'Usage events Discord sends in the background'),
+          toggleRow('privacy.crashReports', 'Block crash reports', 'Error logs sent to Discord\'s crash reporting service'),
+          toggleRow('privacy.silentTyping', 'Silent typing', 'Others won\'t see "… is typing"')),
+        h('p', { class: 'hint' }, 'Blocked requests are answered locally, so Discord keeps working normally.'),
         h('h2', {}, 'Performance'),
         h('div', {},
           toggleRow('perf.reduceMotion', 'Reduce motion', 'Turns off UI animations and transitions'),
@@ -192,23 +235,58 @@ function createPanel() {
       ];
     },
 
-    Privacy() {
+    Share() {
+      const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Default share mode' },
+        Object.entries(SHARE_MODES).map(([id, m]) => h('button', {
+          'aria-pressed': String(store.get('screenshare.mode') === id), title: m.desc,
+          onclick: () => { store.set('screenshare.mode', id); render(); } }, m.short)));
+      const mode = SHARE_MODES[store.get('screenshare.mode')] || SHARE_MODES.balanced;
       return [
-        h('h2', {}, 'Block'),
+        h('h2', {}, 'Optimize for'), seg,
+        h('p', { class: 'hint' }, mode.desc + ' You can switch live from the share bar too.'),
+        h('h2', {}, 'Options'),
         h('div', {},
-          toggleRow('privacy.telemetry', 'Analytics & tracking', 'Usage events Discord sends in the background'),
-          toggleRow('privacy.crashReports', 'Crash reports', 'Error logs sent to Discord\'s crash reporting service'),
-          toggleRow('privacy.silentTyping', 'Silent typing', 'Others won\'t see "… is typing"')),
-        h('p', { class: 'hint' }, 'Blocked requests are answered locally, so Discord keeps working normally.'),
+          toggleRow('screenshare.audio', 'Share audio', 'Include sound from the screen, window or tab you pick'),
+          toggleRow('screenshare.askEachTime', 'Show the share sheet', 'Pick a mode and audio before choosing what to share'),
+          toggleRow('screenshare.pill', 'Live share bar', 'Timer, mode switch and Stop button while you\'re live')),
+        h('h2', {}, 'Shortcut'),
+        h('div', { class: 'row' }, h('span', { class: 'label' }, 'Start or stop sharing',
+          h('span', { class: 'desc' }, 'While you\'re in a voice channel')), h('kbd', {}, 'Ctrl+Alt+S')),
+      ];
+    },
+
+    Mods() {
+      const box = h('div', {}, h('p', { class: 'hint' }, 'Loading…'));
+      renderMods(box);
+      return [
+        h('h2', {}, 'Client mod'),
+        h('p', { class: 'hint', style: 'margin-bottom:10px' },
+          'Load a full plugin suite on top of Driftcord. After restarting, manage plugins in Discord\'s User Settings under the mod\'s own section.'),
+        box,
+        h('p', { class: 'hint', style: 'margin-top:14px' },
+          'Vencord and Equicord are separate open-source projects (GPL-3.0). Driftcord downloads their official web builds from GitHub and refreshes them on every launch. Report plugin bugs to those projects.'),
       ];
     },
 
     About() {
       const status = h('p', { class: 'hint' });
+      const upd = h('p', { class: 'hint' });
+      const checkBtn = h('button', { class: 'btn', onclick: async () => {
+        checkBtn.disabled = true; upd.textContent = 'Checking…';
+        const u = await checkForUpdates(true);
+        upd.textContent = u ? `Version ${u.version} is available.` : (u === null ? 'You\'re up to date.' : '');
+        checkBtn.disabled = false;
+      } }, 'Check now');
       return [
+        h('h2', {}, 'Updates'),
+        h('div', { class: 'row' }, h('span', { class: 'label' }, 'Driftcord ' + VERSION,
+          h('span', { class: 'desc' }, 'Updates download in the background and install on restart')), checkBtn),
+        upd,
+        toggleRow('updates.auto', 'Check automatically', 'On launch and every few hours'),
         h('h2', {}, 'Shortcuts'),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Open this panel'), h('kbd', {}, 'Ctrl+Alt+D')),
-        h('div', { class: 'row' }, h('span', { class: 'label' }, 'Close it'), h('kbd', {}, 'Esc')),
+        h('div', { class: 'row' }, h('span', { class: 'label' }, 'Start or stop screen share'), h('kbd', {}, 'Ctrl+Alt+S')),
+        h('div', { class: 'row' }, h('span', { class: 'label' }, 'Close panels'), h('kbd', {}, 'Esc')),
         h('h2', {}, 'Panel'),
         toggleRow('showEdgeTab', 'Show edge tab', 'The slim tab on the right edge of the window'),
         h('h2', {}, 'Settings'),
@@ -235,6 +313,49 @@ function createPanel() {
     },
   };
 
+  // Mods tab body: needs the native side, so it renders asynchronously.
+  async function renderMods(box) {
+    if (!bridge.available()) {
+      box.replaceChildren(h('p', { class: 'hint' }, 'Mods are available in the Driftcord app.'));
+      return;
+    }
+    let info;
+    try { info = await bridge.invoke('get_info'); } catch (e) {
+      box.replaceChildren(h('p', { class: 'hint' }, 'Couldn\'t load mod info: ' + errText(e)));
+      return;
+    }
+    const draw = (busy, error) => {
+      const kb = (n) => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
+      const options = [
+        { id: null, name: 'None', sub: 'Just Driftcord. Fastest and lightest.' },
+        ...info.mods.map((m) => ({ id: m.id, name: m.name,
+          sub: (m.id === 'vencord' ? 'The original. 100+ well-maintained plugins.' : 'Vencord fork with 300+ extra plugins.') +
+            (m.installed ? ` · ${kb(m.size)} downloaded` : ''),
+          loaded: info.loadedMod === m.id })),
+      ];
+      const cards = h('div', { class: 'choices' }, options.map((o) => h('button', {
+        class: 'choice', 'aria-pressed': String((info.clientMod ?? null) === o.id), disabled: !!busy,
+        onclick: async () => {
+          if ((info.clientMod ?? null) === o.id) return;
+          draw(o.id ? `Downloading ${o.name}…` : 'Saving…');
+          try { info = await bridge.invoke('set_mod', { id: o.id }); draw(); }
+          catch (e) { draw(null, errText(e)); }
+        } },
+        h('span', { class: 'dot' }),
+        h('span', {}, h('div', { class: 't' }, o.name, o.loaded ? h('span', { class: 'pill-tag' }, 'Active') : null),
+          h('div', { class: 's' }, o.sub)))));
+
+      const needsRestart = (info.clientMod ?? null) !== (info.loadedMod ?? null);
+      box.replaceChildren(cards,
+        busy ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, busy)) : null,
+        error ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Couldn\'t switch: ' + error)) : null,
+        !busy && needsRestart ? h('div', { class: 'notice' },
+          h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
+          h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null);
+    };
+    draw();
+  }
+
   let current = 'Look';
   const header = h('header', {});
   const logo = h('div', { class: 'logo' });
@@ -249,16 +370,34 @@ function createPanel() {
     syncColors();
     nav.replaceChildren(...Object.keys(tabs).map((name) =>
       h('button', { role: 'tab', 'aria-selected': String(name === current),
-        onclick: () => { current = name; render(); } }, name)));
+        onclick: () => { current = name; main.scrollTop = 0; render(); } }, name)));
     const scroll = main.scrollTop;
     main.replaceChildren(...tabs[current]());
     main.scrollTop = scroll;
   }
 
-  function toggle(force) {
+  function toggle(force, tab) {
     const open = force ?? !wrap.classList.contains('open');
+    if (tab && tabs[tab]) current = tab;
     wrap.classList.toggle('open', open);
     if (open) render();
+  }
+
+  // ── Toasts
+  const toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
+  wrap.append(toasts);
+  function toast(msg, { sub, actions = [], duration = 6000 } = {}) {
+    const el = h('div', { class: 'toast', role: 'status' },
+      h('div', { class: 'msg' }, msg), sub ? h('div', { class: 'sub' }, sub) : null);
+    const close = () => el.remove();
+    if (actions.length) {
+      el.append(h('div', { class: 'btns' }, actions.map((a) => h('button', {
+        class: 'btn' + (a.primary ? ' primary' : ''),
+        onclick: () => { if (!a.keepOpen) close(); a.run && a.run(el); } }, a.label))));
+    }
+    toasts.append(el);
+    if (duration) setTimeout(close, duration);
+    return { el, close, update(m, s) { el.querySelector('.msg').textContent = m; if (s != null) { const x = el.querySelector('.sub'); if (x) x.textContent = s; } } };
   }
 
   store.onChange((path) => {
@@ -279,5 +418,14 @@ function createPanel() {
   }
 
   syncColors();
-  return { host, toggle };
+  return {
+    host, toggle, toast,
+    /** Container that inherits the panel's theme colors, for overlays. */
+    layer: wrap,
+    addStyles(css) { root.append(h('style', {}, css)); },
+  };
 }
+
+// Shared helpers for other modules. Mount lazily so they work before <body>.
+function ui() { mountPanel(); return panel; }
+function toast(msg, opts) { const p = ui(); return p ? p.toast(msg, opts) : null; }

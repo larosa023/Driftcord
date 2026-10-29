@@ -45,6 +45,96 @@ const THEMES = {
       accent: '#ff8a4c',
     },
   },
+  nord: {
+    name: 'Nord',
+    note: 'Arctic blues and frost',
+    palette: {
+      base0: '#242933', base1: '#2b303b', base2: '#2e3440', surface: '#3b4252',
+      input: '#3b4252', text: '#d8dee9', muted: '#929cb0', header: '#eceff4',
+      accent: '#5e81ac',
+    },
+  },
+  dracula: {
+    name: 'Dracula',
+    note: 'The classic purple night',
+    palette: {
+      base0: '#1e1f29', base1: '#21222c', base2: '#282a36', surface: '#343746',
+      input: '#343746', text: '#f8f8f2', muted: '#a0a6c8', header: '#ffffff',
+      accent: '#a77bf3',
+    },
+  },
+  catppuccin: {
+    name: 'Catppuccin',
+    note: 'Mocha: soft pastel dark',
+    palette: {
+      base0: '#11111b', base1: '#181825', base2: '#1e1e2e', surface: '#313244',
+      input: '#313244', text: '#cdd6f4', muted: '#a6adc8', header: '#eff1f5',
+      accent: '#8839ef',
+    },
+  },
+  gruvbox: {
+    name: 'Gruvbox',
+    note: 'Retro warm earth tones',
+    palette: {
+      base0: '#1d2021', base1: '#252423', base2: '#282828', surface: '#3c3836',
+      input: '#3c3836', text: '#ebdbb2', muted: '#a89984', header: '#fbf1c7',
+      accent: '#d65d0e',
+    },
+  },
+  tokyo: {
+    name: 'Tokyo Night',
+    note: 'Neon-lit city blues',
+    palette: {
+      base0: '#16161e', base1: '#1a1b26', base2: '#1e2030', surface: '#292e42',
+      input: '#24283b', text: '#c0caf5', muted: '#8089b3', header: '#e0e6ff',
+      accent: '#5a7ee0',
+    },
+  },
+  rosepine: {
+    name: 'Rosé Pine',
+    note: 'Muted, cozy and calm',
+    palette: {
+      base0: '#111019', base1: '#191724', base2: '#1f1d2e', surface: '#26233a',
+      input: '#26233a', text: '#e0def4', muted: '#908caa', header: '#ffffff',
+      accent: '#b4637a',
+    },
+  },
+  solarized: {
+    name: 'Solarized',
+    note: 'Low-glare teal dark',
+    palette: {
+      base0: '#00212b', base1: '#00262f', base2: '#002b36', surface: '#073642',
+      input: '#073642', text: '#a3b1b1', muted: '#76878d', header: '#eee8d5',
+      accent: '#268bd2',
+    },
+  },
+  forest: {
+    name: 'Forest',
+    note: 'Deep greens, easy on the eyes',
+    palette: {
+      base0: '#0f1712', base1: '#131d17', base2: '#16221a', surface: '#1e2d23',
+      input: '#203026', text: '#d6e4d9', muted: '#8aa393', header: '#f1f8f2',
+      accent: '#3a9a68',
+    },
+  },
+  sakura: {
+    name: 'Sakura',
+    note: 'Dusky plum with cherry blossom',
+    palette: {
+      base0: '#1a1216', base1: '#21171c', base2: '#251a20', surface: '#31232a',
+      input: '#33242c', text: '#f3e3ea', muted: '#b393a3', header: '#fff4f8',
+      accent: '#e05a96',
+    },
+  },
+  graphite: {
+    name: 'Graphite',
+    note: 'Pure monochrome, no color',
+    palette: {
+      base0: '#101010', base1: '#161616', base2: '#1a1a1a', surface: '#222222',
+      input: '#242424', text: '#e2e2e2', muted: '#8c8c8c', header: '#ffffff',
+      accent: '#6e6e6e',
+    },
+  },
 };
 
 function paletteToCss(p, accentOverride) {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Driftcord",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "app.driftcord.desktop",
   "build": {
     "frontendDist": "../src"
@@ -16,6 +16,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -24,6 +25,17 @@
     ],
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlFQkJFQzVDOUY3NUJDQ0MKUldUTXZIV2ZYT3k3bmwyZUtDZFF0MmpCK01wY0cxQll0NGI1eUxlMmh1WUZCKzJoSkFFTmhtY1cK",
+      "endpoints": [
+        "https://github.com/larosa023/Driftcord/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }
