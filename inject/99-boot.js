@@ -25,6 +25,7 @@ function onReady() {
   startTopbar();
   reportBackground(((THEMES[store.get('theme')] || {}).palette || {}).base1 || '#2b2d31');
   announceUpdate();
+  announceRetiredShareMods();
   startMonitor();
   startUpdateChecks();
 }

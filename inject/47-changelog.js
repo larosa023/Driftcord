@@ -4,6 +4,14 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.3', date: '2026-10-29', title: 'Smoother streams',
+    items: [
+      ['fixed', 'Choppy streams: Vencord/Equicord\'s WebScreenShare plugin forced Discord to encode 4K at 120 fps on a tiny bitrate. Driftcord now turns it off, since its own picker handles quality.'],
+      ['fixed', 'The 2160p / 120 fps stream options (from that plugin) are gone.'],
+      ['fixed', 'Even frame pacing when sharing a high-refresh screen (e.g. 144 Hz at 60 fps), so motion no longer judders.'],
+    ],
+  },
+  {
     version: '0.4.2', date: '2026-10-29', title: 'Full frame rate',
     items: [
       ['fixed', 'Discord could be stuck at 30 fps. Graphics runs in its own process again, so it follows your screen\'s refresh rate.'],

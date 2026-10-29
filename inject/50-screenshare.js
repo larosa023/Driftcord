@@ -25,6 +25,37 @@ const SHARE_RES = {
 };
 const SHARE_FPS = [15, 30, 60];
 
+// Vencord/Equicord's "WebScreenShare" plugin adds its own 480p–2160p /
+// 15–120 fps menu and tells Discord's encoder to aim for 4K at 120 fps with a
+// 0.6 Mbps target, which makes streams choppy. Driftcord's picker replaces it,
+// so it's switched off here, before the mod reads its settings.
+// (WebScreenShareFixes stays on: it lifts Chromium's bitrate cap.)
+let retiredShareMods = [];
+(function retireConflictingShareMods() {
+  if (!LS || !store.get('screenshare.native')) return;
+  for (const [key, name] of [['VencordSettings', 'Vencord'], ['EquicordSettings', 'Equicord']]) {
+    try {
+      const raw = LS.getItem(key);
+      if (!raw) continue;
+      const s = JSON.parse(raw);
+      const p = s && s.plugins && s.plugins.WebScreenShare;
+      if (p && p.enabled) {
+        p.enabled = false;
+        LS.setItem(key, JSON.stringify(s));
+        retiredShareMods.push(name);
+      }
+    } catch (_) { /* unreadable settings: leave them alone */ }
+  }
+})();
+function announceRetiredShareMods() {
+  if (!retiredShareMods.length) return;
+  toast('Turned off WebScreenShare', {
+    sub: `${retiredShareMods.join(' and ')}'s WebScreenShare plugin conflicts with Driftcord's share picker (it forced 4K/120 and made streams choppy). Driftcord's picker handles quality now.`,
+    duration: 12000,
+  });
+  retiredShareMods = [];
+}
+
 // WebView2's messaging object. Grab it now, before any page code runs.
 const WV = window.chrome && window.chrome.webview;
 
@@ -211,6 +242,11 @@ function createNativeShare(source, opts) {
       }
     },
   };
+
+  // Quality changes come from Driftcord's picker. Constraint requests from
+  // Discord or plugins are accepted without changing the capture (instead of
+  // failing on a generator track).
+  for (const t of [video, audio]) if (t) t.applyConstraints = () => Promise.resolve();
 
   // Discord calls stop() when you end the stream; make that stop capture too.
   const realStop = MediaStreamTrack.prototype.stop;

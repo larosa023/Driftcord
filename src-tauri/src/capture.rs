@@ -506,7 +506,10 @@ mod win {
 
     struct Video {
         shared: Arc<Shared>,
-        last: Option<Instant>,
+        /// When the next frame is due. Frames are taken on an even cadence
+        /// (not "at least N ms since the last one"), so a 144 Hz screen shared
+        /// at 60 fps doesn't judder between 48 and 72 fps.
+        next_due: Option<Instant>,
         /// Reused intermediate buffer for two-step scaling.
         scratch: Vec<u8>,
         /// Bilinear lookup tables, rebuilt when sizes change.
@@ -569,10 +572,15 @@ mod win {
     impl Video {
         fn frame(&mut self, frame: &mut Frame) -> Result<(), BoxErr> {
             let sh = self.shared.clone();
-            // Frame-rate cap (in case the OS can't throttle at the source).
+            // Frame-rate cap with even pacing: take a frame if it's within a
+            // third of a frame of when one is due, then schedule the next one a
+            // whole interval later (catching up if we fell behind). Tuned so
+            // 60/120/240 Hz screens give perfectly even frames and 144/165 Hz
+            // ones still hit the target rate.
             let now = Instant::now();
-            if let Some(last) = self.last {
-                if now.duration_since(last) + Duration::from_millis(2) < sh.interval {
+            let tolerance = sh.interval / 3;
+            if let Some(due) = self.next_due {
+                if now + tolerance < due {
                     return Ok(());
                 }
             }
@@ -581,7 +589,10 @@ mod win {
             if result.is_err() {
                 sh.release_now(slot.id);
             } else {
-                self.last = Some(now);
+                self.next_due = Some(match self.next_due {
+                    Some(due) if now < due + sh.interval => due + sh.interval,
+                    _ => now + sh.interval,
+                });
             }
             result
         }
@@ -653,7 +664,7 @@ mod win {
         type Error = BoxErr;
 
         fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
-            Ok(Self { shared: ctx.flags, last: None, scratch: Vec::new(), xmap: Vec::new(), xmap_key: (0, 0) })
+            Ok(Self { shared: ctx.flags, next_due: None, scratch: Vec::new(), xmap: Vec::new(), xmap_key: (0, 0) })
         }
 
         fn on_frame_arrived(&mut self, frame: &mut Frame, control: InternalCaptureControl) -> Result<(), Self::Error> {
