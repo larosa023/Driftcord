@@ -286,7 +286,8 @@ function createPanel() {
           h('span', { class: 'desc' }, 'Updates download in the background and install on restart')), checkBtn),
         upd,
         toggleRow('updates.auto', 'Check automatically', 'On launch and every few hours'),
-        h('h2', {}, 'Memory'),
+        h('h2', {}, 'Performance'),
+        fpsCard(),
         memoryCard(),
         h('h2', {}, 'Shortcuts'),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Open this panel'), h('kbd', {}, 'Ctrl+Alt+D')),
@@ -335,7 +336,8 @@ function createPanel() {
     };
     const draw = (info, err) => {
       const save = (cmd, args) => bridge.invoke(cmd, args).then((i) => draw(i)).catch((x) => draw(info, errText(x)));
-      const restart = info && (info.lean !== info.leanActive || info.jsOptimizeSize !== info.jsOptimizeSizeActive);
+      const restart = info && (info.lean !== info.leanActive || info.jsOptimizeSize !== info.jsOptimizeSizeActive ||
+        info.gpuInProcess !== info.gpuInProcessActive);
       box.replaceChildren(...[
         toggleRow('memory.noAutoplay', 'Don\'t autoplay videos', 'GIF clips and embeds play on hover or click. Calls and streams aren\'t affected'),
         info ? nativeRow('Free memory in the background', 'After 2 minutes in another app. Stays on screen; the first scroll back may reload a few images',
@@ -346,6 +348,8 @@ function createPanel() {
           info.jsOptimizeSize, (v) => save('set_memory', { jsOptimizeSize: v })) : null,
         info ? nativeRow('Lean mode', 'Fewer background processes. Turn off only if something renders wrong',
           info.lean, (v) => save('set_lean', { enabled: v })) : null,
+        info && info.lean ? nativeRow('Lighter graphics', 'One less process and a little less memory, but can cap Discord at 30 fps on some PCs',
+          info.gpuInProcess, (v) => save('set_memory', { gpuInProcess: v })) : null,
         restart ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
           h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null,
         err ? h('p', { class: 'hint' }, err) : null,

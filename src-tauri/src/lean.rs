@@ -2,8 +2,9 @@
 //!
 //! WebView2 is Chromium, which normally runs a browser process plus separate
 //! GPU, network, audio, storage and renderer processes (and spare renderers).
-//! Lean mode folds as much as Chromium allows back into the browser process
-//! and keeps a single renderer. What remains is the minimum WebView2 needs:
+//! Lean mode folds network and audio back into the browser process and keeps
+//! a single renderer. Graphics stays in its own process unless "Lighter
+//! graphics" is on, because running it in-process can halve the frame rate. What remains is the minimum WebView2 needs:
 //! the browser process and one renderer.
 //!
 //! Memory saver adds two things on top:
@@ -33,7 +34,6 @@ const LEAN_DISABLE: &str = concat!(
 
 const LEAN_REST: &str = concat!(
     " --enable-features=NetworkServiceInProcess2,NetworkServiceInProcess",
-    " --in-process-gpu",
     " --renderer-process-limit=1",
     " --disable-site-isolation-trials",
     " --disable-background-networking",
@@ -46,12 +46,17 @@ const LEAN_REST: &str = concat!(
 /// Browser arguments for the current settings, or `None` for wry's defaults.
 /// Chromium only honours the *last* `--disable-features` / `--js-flags`, so
 /// each appears once.
-pub fn browser_args(lean: bool, js_small: bool) -> Option<String> {
+pub fn browser_args(lean: bool, js_small: bool, gpu_in_process: bool) -> Option<String> {
     let mut args = format!("--disable-features={WRY_DEFAULT_FEATURES}");
     if lean {
         args.push(',');
         args.push_str(LEAN_DISABLE);
         args.push_str(LEAN_REST);
+        // Graphics in the browser process saves a process and some memory, but
+        // on some PCs it halves the frame rate, so it's opt-in ("Lighter graphics").
+        if gpu_in_process {
+            args.push_str(" --in-process-gpu");
+        }
     }
     if js_small {
         args.push_str(" --js-flags=--optimize-for-size");

@@ -91,3 +91,39 @@ function memoryCard() {
   const timer = setInterval(() => { if (!box.isConnected) clearInterval(timer); else draw(); }, MON_INTERVAL);
   return box;
 }
+
+
+// ── Frame rate ───────────────────────────────────────────────────────────────
+// Counts animation frames for a moment. Only runs when asked (About tab or
+// `driftcordFps()` in the console), so it costs nothing otherwise.
+
+function measureFps(ms = 1500) {
+  return new Promise((resolve) => {
+    let frames = 0, first = 0, last = 0;
+    const step = (t) => {
+      if (!first) first = t;
+      last = t; frames++;
+      if (t - first < ms) requestAnimationFrame(step);
+      else resolve(frames > 1 ? Math.round(((frames - 1) * 1000) / (last - first)) : 0);
+    };
+    requestAnimationFrame(step);
+  });
+}
+window.driftcordFps = () => measureFps().then((fps) => fps + ' fps');
+
+/** About → Smoothness row: measures when shown and on demand. */
+function fpsCard() {
+  const value = h('b', {}, '…');
+  const desc = h('span', { class: 'desc' }, 'Measuring…');
+  const run = async () => {
+    value.textContent = '…'; desc.textContent = 'Measuring…';
+    const fps = await measureFps();
+    value.textContent = fps + ' fps';
+    desc.textContent = fps >= 55 ? 'Running at your screen\'s refresh rate.'
+      : fps >= 28 && fps <= 32 ? 'Capped at about half speed. If "Lighter graphics" is on, turn it off and restart.'
+      : 'Below your screen\'s refresh rate right now (Discord may be busy).';
+  };
+  setTimeout(run, 300); // let the panel finish opening first
+  return h('div', { class: 'row' }, h('span', { class: 'label' }, 'Smoothness', desc), value,
+    h('button', { class: 'btn', onclick: run }, 'Measure'));
+}

@@ -18,6 +18,8 @@ pub struct Config {
     pub tray_trim_minutes: u32,
     /// Light trim while visible but unfocused.
     pub idle_trim: bool,
+    /// Run graphics inside the browser process (lighter, can cap FPS).
+    pub gpu_in_process: bool,
     /// Theme background (hex) so the window opens in the right color, not white.
     pub background: Option<String>,
 }
@@ -31,6 +33,7 @@ impl Default for Config {
             tray_trim: true,
             tray_trim_minutes: 2,
             idle_trim: true,
+            gpu_in_process: false,
             background: None,
         }
     }

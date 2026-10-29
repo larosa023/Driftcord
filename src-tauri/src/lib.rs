@@ -100,6 +100,8 @@ struct Info {
     native_capture: bool,
     js_optimize_size: bool,
     js_optimize_size_active: bool,
+    gpu_in_process: bool,
+    gpu_in_process_active: bool,
     tray_trim: bool,
     idle_trim: bool,
 }
@@ -122,6 +124,8 @@ fn info(app: &AppHandle, cfg: &config::Config, loaded_mod: Option<String>) -> In
         native_capture: capture::supported(),
         js_optimize_size: cfg.js_optimize_size,
         js_optimize_size_active: app.state::<Active>().js_small,
+        gpu_in_process: cfg.gpu_in_process,
+        gpu_in_process_active: app.state::<Active>().gpu_in_process,
         tray_trim: cfg.tray_trim,
         idle_trim: cfg.idle_trim,
     }
@@ -131,6 +135,7 @@ fn info(app: &AppHandle, cfg: &config::Config, loaded_mod: Option<String>) -> In
 struct Active {
     lean: bool,
     js_small: bool,
+    gpu_in_process: bool,
 }
 
 /// The page reports its theme background so the next launch opens in that
@@ -161,12 +166,16 @@ fn parse_hex(s: &str) -> Option<tauri::webview::Color> {
 fn set_memory(
     app: AppHandle,
     js_optimize_size: Option<bool>,
+    gpu_in_process: Option<bool>,
     tray_trim: Option<bool>,
     idle_trim: Option<bool>,
 ) -> Result<Info, String> {
     let mut cfg = config::load(&app);
     if let Some(v) = js_optimize_size {
         cfg.js_optimize_size = v;
+    }
+    if let Some(v) = gpu_in_process {
+        cfg.gpu_in_process = v;
     }
     if let Some(v) = tray_trim {
         cfg.tray_trim = v;
@@ -317,7 +326,7 @@ pub fn run() {
             let loaded_mod = mod_script.as_ref().and(cfg.client_mod.clone());
             app.manage(LoadedMod(loaded_mod.clone()));
             let lean = !cfg.disable_lean;
-            app.manage(Active { lean, js_small: cfg.js_optimize_size });
+            app.manage(Active { lean, js_small: cfg.js_optimize_size, gpu_in_process: cfg.gpu_in_process });
 
             let mut builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::External(DISCORD_URL.parse()?))
                 .title("Driftcord")
@@ -327,7 +336,7 @@ pub fn run() {
                     cfg.background.as_deref().and_then(parse_hex).unwrap_or(tauri::webview::Color(0x13, 0x1f, 0x33, 255)),
                 )
                 .initialization_script(injection_script());
-            if let Some(args) = lean::browser_args(lean, cfg.js_optimize_size) {
+            if let Some(args) = lean::browser_args(lean, cfg.js_optimize_size, cfg.gpu_in_process) {
                 builder = builder.additional_browser_args(&args);
             }
             if let Some(script) = mod_script {

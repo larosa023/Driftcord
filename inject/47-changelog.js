@@ -4,6 +4,14 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.2', date: '2026-10-29', title: 'Full frame rate',
+    items: [
+      ['fixed', 'Discord could be stuck at 30 fps. Graphics runs in its own process again, so it follows your screen\'s refresh rate.'],
+      ['new', '"Lighter graphics" option in Clean → Memory saver if you\'d rather save the memory than the frames.'],
+      ['new', 'Smoothness meter in About shows Driftcord\'s current frame rate.'],
+    ],
+  },
+  {
     version: '0.4.1', date: '2026-10-29', title: 'Pink Noir',
     items: [
       ['new', 'Pink Noir theme: true black for OLED screens with hot pink accents.'],
