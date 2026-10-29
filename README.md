@@ -88,7 +88,7 @@ The `inject/` files are concatenated at compile time (see `injection_script()` i
 
 ## Releasing
 
-Bump the version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` and `inject/00-store.js`, then push a tag like `v0.2.0`. GitHub Actions builds the installer and portable exe and publishes them as a GitHub Release.
+Every push to `main` builds the Windows installer and portable exe and publishes them to the GitHub Release for the current version (created automatically as tag `v<version>`). To ship a new version, bump the version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` and `inject/00-store.js`, then push.
 
 ## License
 

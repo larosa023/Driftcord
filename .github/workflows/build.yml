@@ -1,12 +1,21 @@
-name: Build
+name: Build & Release
 
+# Every push to main builds Windows binaries and publishes them to the GitHub
+# Release for the current version (tag v<version> from tauri.conf.json).
+# The release and tag are created automatically if they don't exist yet; on
+# later pushes with the same version the files are replaced with fresh builds.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths-ignore: ["**.md", "LICENSE"]
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   windows:
@@ -27,41 +36,28 @@ jobs:
 
       - run: npm ci
 
-      # Tagged push: build and publish a GitHub Release with the installer.
-      - name: Build and release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Build and publish release
+        id: tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Driftcord ${{ github.ref_name }}
+          tagName: v__VERSION__
+          releaseName: Driftcord v__VERSION__
           releaseBody: |
             **Download `Driftcord_*_x64-setup.exe`** to install, or `Driftcord-portable.exe` to run without installing.
 
-            Windows 10/11 (64-bit). Uses the WebView2 runtime that comes with Windows.
+            Windows 10/11 (64-bit). Uses the WebView2 runtime that comes with Windows. Windows may show a SmartScreen warning because the app isn't code-signed: click **More info → Run anyway**.
 
             Not affiliated with Discord. Using a modified client is against Discord's Terms of Service; use at your own risk.
           releaseDraft: false
           prerelease: false
 
       - name: Attach portable exe
-        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
           cp src-tauri/target/release/driftcord.exe Driftcord-portable.exe
-          gh release upload "${{ github.ref_name }}" Driftcord-portable.exe --clobber
-
-      # Manual run: just build and keep the files as a workflow artifact.
-      - name: Build only
-        if: "!startsWith(github.ref, 'refs/tags/')"
-        run: npm run build
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: driftcord-windows
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/driftcord.exe
+          gh release upload "v$version" Driftcord-portable.exe --clobber
