@@ -103,6 +103,8 @@ struct Info {
     js_optimize_size_active: bool,
     gpu_in_process: bool,
     gpu_in_process_active: bool,
+    gpu_boost: bool,
+    gpu_boost_active: bool,
     native_titlebar: bool,
     native_titlebar_active: bool,
     tray_trim: bool,
@@ -129,6 +131,8 @@ fn info(app: &AppHandle, cfg: &config::Config, loaded_mod: Option<String>) -> In
         js_optimize_size_active: app.state::<Active>().js_small,
         gpu_in_process: cfg.gpu_in_process,
         gpu_in_process_active: app.state::<Active>().gpu_in_process,
+        gpu_boost: cfg.gpu_boost,
+        gpu_boost_active: app.state::<Active>().gpu_boost,
         native_titlebar: cfg.native_titlebar,
         native_titlebar_active: app.state::<Active>().native_titlebar,
         tray_trim: cfg.tray_trim,
@@ -141,6 +145,7 @@ struct Active {
     lean: bool,
     js_small: bool,
     gpu_in_process: bool,
+    gpu_boost: bool,
     native_titlebar: bool,
 }
 
@@ -176,6 +181,7 @@ fn set_memory(
     tray_trim: Option<bool>,
     idle_trim: Option<bool>,
     native_titlebar: Option<bool>,
+    gpu_boost: Option<bool>,
 ) -> Result<Info, String> {
     let mut cfg = config::load(&app);
     if let Some(v) = js_optimize_size {
@@ -192,6 +198,9 @@ fn set_memory(
     }
     if let Some(v) = native_titlebar {
         cfg.native_titlebar = v;
+    }
+    if let Some(v) = gpu_boost {
+        cfg.gpu_boost = v;
     }
     config::save(&app, &cfg)?;
     let loaded = app.state::<LoadedMod>().0.clone();
@@ -409,6 +418,7 @@ pub fn run() {
                 lean,
                 js_small: cfg.js_optimize_size,
                 gpu_in_process: cfg.gpu_in_process,
+                gpu_boost: cfg.gpu_boost,
                 native_titlebar: cfg.native_titlebar,
             });
 
@@ -425,7 +435,7 @@ pub fn run() {
                     cfg.background.as_deref().and_then(parse_hex).unwrap_or(tauri::webview::Color(0x13, 0x1f, 0x33, 255)),
                 )
                 .initialization_script(injection_script());
-            if let Some(args) = lean::browser_args(lean, cfg.js_optimize_size, cfg.gpu_in_process) {
+            if let Some(args) = lean::browser_args(lean, cfg.js_optimize_size, cfg.gpu_in_process, cfg.gpu_boost) {
                 builder = builder.additional_browser_args(&args);
             }
             if let Some(script) = mod_script {
@@ -489,6 +499,11 @@ pub fn run() {
             let sep = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &settings, &reload, &lean_item, &sep, &quit])?;
+            // Escape hatch in case Boosted graphics doesn't agree with a driver.
+            if cfg.gpu_boost {
+                let gfx = MenuItem::with_id(app, "gpu_standard", "Restart with standard graphics", true, None::<&str>)?;
+                menu.insert(&gfx, 4)?;
+            }
 
             let mut tray = TrayIconBuilder::with_id("driftcord-tray")
                 .tooltip("Driftcord")
@@ -511,6 +526,12 @@ pub fn run() {
                     "lean" => {
                         let mut cfg = config::load(app);
                         cfg.disable_lean = !cfg.disable_lean;
+                        let _ = config::save(app, &cfg);
+                        app.restart();
+                    }
+                    "gpu_standard" => {
+                        let mut cfg = config::load(app);
+                        cfg.gpu_boost = false;
                         let _ = config::save(app, &cfg);
                         app.restart();
                     }

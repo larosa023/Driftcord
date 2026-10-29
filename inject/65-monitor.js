@@ -165,6 +165,15 @@ function graphicsCard() {
     h('div', { class: 'row' }, h('span', { class: 'label' }, 'Power',
       h('span', { class: 'desc' }, 'Windows may lower frame rates on battery or with Energy Saver on')), power),
   );
+  // Software rendering is what Boosted graphics fixes: offer it right here.
+  if (g.software && bridge.available()) {
+    bridge.invoke('get_info').then((info) => {
+      if (info.gpuBoost) return;
+      const btn = h('button', { class: 'btn primary', onclick: () => bridge.invoke('set_memory', { gpuBoost: true })
+        .then(() => bridge.invoke('restart_app')).catch(() => {}) }, 'Turn on & restart');
+      box.append(h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Boosted graphics can usually get your GPU working here.'), btn));
+    }).catch(() => {});
+  }
   if (navigator.getBattery) {
     navigator.getBattery().then((b) => {
       power.textContent = b.charging || b.level === 1 && b.chargingTime === 0 ? 'Plugged in' : `On battery (${Math.round(b.level * 100)}%)`;

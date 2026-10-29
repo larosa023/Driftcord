@@ -43,10 +43,23 @@ const LEAN_REST: &str = concat!(
     " --no-pings",
 );
 
+/// "Boosted graphics" for older PCs. Chromium falls back to slow software
+/// drawing on GPUs/drivers it has blocklisted, which is the usual reason an
+/// older PC is stuck near 30 fps. This uses the GPU anyway, draws page content
+/// on it, skips a copy when uploading images, and on laptops with two GPUs
+/// picks the faster one. If a driver really can't cope, Chromium still falls
+/// back by itself, and the tray has "Restart with standard graphics".
+const GPU_BOOST: &str = concat!(
+    " --ignore-gpu-blocklist",
+    " --enable-gpu-rasterization",
+    " --enable-zero-copy",
+    " --force_high_performance_gpu",
+);
+
 /// Browser arguments for the current settings, or `None` for wry's defaults.
 /// Chromium only honours the *last* `--disable-features` / `--js-flags`, so
 /// each appears once.
-pub fn browser_args(lean: bool, js_small: bool, gpu_in_process: bool) -> Option<String> {
+pub fn browser_args(lean: bool, js_small: bool, gpu_in_process: bool, gpu_boost: bool) -> Option<String> {
     let mut args = format!("--disable-features={WRY_DEFAULT_FEATURES}");
     if lean {
         args.push(',');
@@ -54,12 +67,15 @@ pub fn browser_args(lean: bool, js_small: bool, gpu_in_process: bool) -> Option<
         args.push_str(LEAN_REST);
         // Graphics in the browser process saves a process and some memory, but
         // on some PCs it halves the frame rate, so it's opt-in ("Lighter graphics").
-        if gpu_in_process {
+        if gpu_in_process && !gpu_boost {
             args.push_str(" --in-process-gpu");
         }
     }
     if js_small {
         args.push_str(" --js-flags=--optimize-for-size");
+    }
+    if gpu_boost {
+        args.push_str(GPU_BOOST);
     }
     // Live (not 20-minute-cached) numbers for the About → Memory monitor.
     args.push_str(" --enable-precise-memory-info");
@@ -184,3 +200,27 @@ fn trim(window: &WebviewWindow, mode: Trim) {
 
 #[cfg(not(windows))]
 fn trim(_window: &WebviewWindow, _mode: Trim) {}
+
+#[cfg(test)]
+mod tests {
+    use super::browser_args;
+
+    #[test]
+    fn boost_adds_gpu_flags_and_keeps_gpu_out_of_process() {
+        let a = browser_args(true, true, true, true).unwrap();
+        for f in ["--ignore-gpu-blocklist", "--enable-gpu-rasterization", "--enable-zero-copy", "--force_high_performance_gpu"] {
+            assert!(a.contains(f), "{f} missing: {a}");
+        }
+        assert!(!a.contains("--in-process-gpu"));
+        assert_eq!(a.matches("--disable-features=").count(), 1);
+        assert_eq!(a.matches("--enable-features=").count(), 1);
+    }
+
+    #[test]
+    fn standard_graphics_has_no_boost_flags() {
+        let a = browser_args(true, false, true, false).unwrap();
+        assert!(a.contains("--in-process-gpu"));
+        assert!(!a.contains("--ignore-gpu-blocklist"));
+        assert!(!browser_args(false, false, false, false).unwrap().contains("--enable-features="));
+    }
+}

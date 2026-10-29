@@ -235,6 +235,7 @@ function createPanel() {
           h('span', { class: 'desc' }, '30 fps halves the page\'s animation work, for very old PCs')),
           h('div', { class: 'seg' }, [[60, '60 fps'], [30, '30 fps']].map(([v, label]) =>
             h('button', { 'aria-pressed': String(store.get('perf.fps') === v), onclick: () => { store.set('perf.fps', v); render(); } }, label)))),
+        gpuBoostRow(),
         h('div', {},
           toggleRow('perf.reduceMotion', 'Reduce motion', 'Turns off UI animations and transitions'),
           toggleRow('perf.noBlur', 'Disable blur effects', 'Cheaper to render on older GPUs')),
@@ -332,6 +333,26 @@ function createPanel() {
     },
   };
 
+  // Clean → Performance: Boosted graphics (applies on restart).
+  function gpuBoostRow() {
+    const box = h('div', {});
+    if (!bridge.available()) return box;
+    const draw = (info) => {
+      const input = h('input', { type: 'checkbox', role: 'switch', checked: !!info.gpuBoost,
+        onchange: (e) => bridge.invoke('set_memory', { gpuBoost: e.target.checked }).then(draw).catch(() => {}) });
+      box.replaceChildren(...[
+        h('label', { class: 'row' }, h('span', { class: 'label' }, 'Boosted graphics',
+          h('span', { class: 'desc' }, 'For older PCs stuck around 30 fps: uses your graphics card even if Chromium would skip it, and picks the faster one on laptops. Uses a bit more power')),
+          h('span', { class: 'switch' }, input)),
+        info.gpuBoost !== info.gpuBoostActive ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
+          h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null,
+        info.gpuBoost ? h('p', { class: 'hint' }, 'If anything flickers or goes black, right-click the tray icon → Restart with standard graphics.') : null,
+      ].filter(Boolean));
+    };
+    bridge.invoke('get_info').then(draw).catch(() => {});
+    return box;
+  }
+
   function titlebarRow() {
     const box = h('div', {});
     if (!bridge.available()) return box;
@@ -371,7 +392,7 @@ function createPanel() {
           info.jsOptimizeSize, (v) => save('set_memory', { jsOptimizeSize: v })) : null,
         info ? nativeRow('Lean mode', 'Fewer background processes. Turn off only if something renders wrong',
           info.lean, (v) => save('set_lean', { enabled: v })) : null,
-        info && info.lean ? nativeRow('Lighter graphics', 'One less process and a little less memory, but can cap Discord at 30 fps on some PCs',
+        info && info.lean && !info.gpuBoost ? nativeRow('Lighter graphics', 'One less process and a little less memory, but can cap Discord at 30 fps on some PCs',
           info.gpuInProcess, (v) => save('set_memory', { gpuInProcess: v })) : null,
         restart ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
           h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null,

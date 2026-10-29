@@ -4,6 +4,14 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.5', date: '2026-10-29', title: 'Boosted graphics',
+    items: [
+      ['new', 'Boosted graphics (Clean → Performance) for older PCs: uses your graphics card even when Chromium would fall back to slow software drawing, draws the page on the GPU, and picks the faster card on laptops with two.'],
+      ['new', 'If About → Performance finds software rendering, it offers to turn Boosted graphics on for you.'],
+      ['fix', 'Safety net: the tray menu gets "Restart with standard graphics" while Boosted graphics is on.'],
+    ],
+  },
+  {
     version: '0.4.4', date: '2026-10-29', title: 'One bar & frame rate',
     items: [
       ['new', 'Windows\' title bar is gone: Discord\'s top bar is the title bar, with minimize, maximize and close at its right end, like the official app.'],
