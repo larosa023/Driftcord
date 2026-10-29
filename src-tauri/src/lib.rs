@@ -100,6 +100,7 @@ struct Info {
     js_optimize_size: bool,
     js_optimize_size_active: bool,
     tray_trim: bool,
+    idle_trim: bool,
 }
 
 struct LoadedMod(Option<String>);
@@ -121,6 +122,7 @@ fn info(app: &AppHandle, cfg: &config::Config, loaded_mod: Option<String>) -> In
         js_optimize_size: cfg.js_optimize_size,
         js_optimize_size_active: app.state::<Active>().js_small,
         tray_trim: cfg.tray_trim,
+        idle_trim: cfg.idle_trim,
     }
 }
 
@@ -155,13 +157,21 @@ fn parse_hex(s: &str) -> Option<tauri::webview::Color> {
 }
 
 #[tauri::command]
-fn set_memory(app: AppHandle, js_optimize_size: Option<bool>, tray_trim: Option<bool>) -> Result<Info, String> {
+fn set_memory(
+    app: AppHandle,
+    js_optimize_size: Option<bool>,
+    tray_trim: Option<bool>,
+    idle_trim: Option<bool>,
+) -> Result<Info, String> {
     let mut cfg = config::load(&app);
     if let Some(v) = js_optimize_size {
         cfg.js_optimize_size = v;
     }
     if let Some(v) = tray_trim {
         cfg.tray_trim = v;
+    }
+    if let Some(v) = idle_trim {
+        cfg.idle_trim = v;
     }
     config::save(&app, &cfg)?;
     let loaded = app.state::<LoadedMod>().0.clone();
@@ -431,6 +441,7 @@ pub fn run() {
                     }
                 }
                 WindowEvent::Focused(true) => lean::on_shown(window.app_handle()),
+                WindowEvent::Focused(false) => lean::on_unfocused(window.app_handle()),
                 _ => {}
             }
         })

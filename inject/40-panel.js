@@ -331,7 +331,9 @@ function createPanel() {
       const restart = info && (info.lean !== info.leanActive || info.jsOptimizeSize !== info.jsOptimizeSizeActive);
       box.replaceChildren(...[
         toggleRow('memory.noAutoplay', 'Don\'t autoplay videos', 'GIF clips and embeds play on hover or click. Calls and streams aren\'t affected'),
-        info ? nativeRow('Free memory in the tray', 'After 2 minutes minimized or in the tray. Messages and calls keep working',
+        info ? nativeRow('Free memory in the background', 'After 2 minutes in another app. Stays on screen; the first scroll back may reload a few images',
+          info.idleTrim, (v) => save('set_memory', { idleTrim: v })) : null,
+        info ? nativeRow('Free more memory in the tray', 'After 2 minutes minimized or in the tray. Messages and calls keep working',
           info.trayTrim, (v) => save('set_memory', { trayTrim: v })) : null,
         info ? nativeRow('Leaner JavaScript engine', 'Favors smaller memory over raw speed',
           info.jsOptimizeSize, (v) => save('set_memory', { jsOptimizeSize: v })) : null,

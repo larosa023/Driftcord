@@ -57,6 +57,7 @@ window.__driftcordTrim = (away) => {
   if (!away) return;
   // Stop anything decoding off-screen (live call media is left alone).
   for (const v of document.querySelectorAll('video')) {
-    if (!isLive(v) && !v.paused) v.pause();
+    // Leave live media and anything you deliberately started alone.
+    if (!isLive(v) && !allowed.has(v) && !v.paused) v.pause();
   }
 };

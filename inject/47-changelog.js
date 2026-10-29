@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.3.4', date: '2026-10-29', title: 'Lighter in the background',
+    items: [
+      ['new', 'Driftcord now frees memory after 2 minutes in another app, while staying on screen. Click back in and it\'s instantly normal.'],
+      ['improved', 'Videos you started yourself keep playing when Driftcord trims memory.'],
+    ],
+  },
+  {
     version: '0.3.3', date: '2026-10-29', title: 'Faster & lighter',
     items: [
       ['improved', 'Opens straight into your theme\'s color instead of a white flash while Discord loads.'],
