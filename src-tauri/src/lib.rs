@@ -37,6 +37,7 @@ fn injection_script() -> String {
         include_str!("../../inject/20-debloat.js"),
         include_str!("../../inject/30-themes.js"),
         include_str!("../../inject/40-panel.js"),
+        include_str!("../../inject/45-topbar.js"),
         include_str!("../../inject/50-screenshare.js"),
         include_str!("../../inject/60-updates.js"),
         include_str!("../../inject/99-boot.js"),

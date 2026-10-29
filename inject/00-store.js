@@ -4,7 +4,7 @@
 
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 
 const DEFAULTS = {
   theme: 'drift',
@@ -12,6 +12,7 @@ const DEFAULTS = {
   font: '',              // '' = Discord default
   customCss: '',
   showEdgeTab: true,
+  showTopbarButton: true, // Driftcord icon next to Inbox
   privacy: {
     telemetry: true,     // analytics + "science" pings
     crashReports: true,  // Sentry / error reporting
