@@ -4,7 +4,7 @@
 
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 const DEFAULTS = {
   theme: 'drift',

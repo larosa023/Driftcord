@@ -83,9 +83,17 @@ pub fn status(app: &AppHandle) -> Vec<ModStatus> {
 const SHIM: &str = include_str!("../../inject/mod-shim.js");
 
 /// The init script for the enabled mod, if it's been downloaded.
+///
+/// The mod runs inside its own function scope, like a userscript manager does.
+/// At the top level its `var Vencord` becomes a non-configurable property of
+/// `window`, so the mod's own `Object.defineProperty(unsafeWindow, 'Vencord')`
+/// throws and the rest of the script (including its stylesheet) never runs.
 pub fn startup_script(app: &AppHandle, id: &str) -> Option<String> {
     let code = fs::read_to_string(cache_path(app, id)?).ok()?;
-    Some(format!("{SHIM}\n;\n{code}"))
+    Some(format!(
+        // `code` must start the function body so its "use strict" directive still applies.
+        "{SHIM}\n;(function () {{\n{code}\n}}).call(window);"
+    ))
 }
 
 fn client() -> Result<reqwest::Client, String> {
