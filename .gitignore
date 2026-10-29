@@ -4,3 +4,7 @@ src-tauri/gen/
 .DS_Store
 Thumbs.db
 *.log
+
+# Never commit signing keys
+*.key
+TAURI_SIGNING_PRIVATE_KEY*
