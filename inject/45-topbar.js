@@ -173,7 +173,25 @@ const TOPBAR_BUTTONS = [
 ];
 const topbarEls = new Map(); // id -> element
 
-function ensureTopbarButton() {
+function topbarInPlace() {
+  // Fast path: every enabled button is attached, in order, right before the anchor.
+  let el = null;
+  for (const spec of TOPBAR_BUTTONS) {
+    if (!store.get(spec.setting)) continue;
+    const b = topbarEls.get(spec.id);
+    if (!b || !b.isConnected || (el && el.nextElementSibling !== b)) return false;
+    el = b;
+  }
+  if (!el) return true;
+  const next = el.nextElementSibling;
+  return !!(next && !next.dataset.driftcord && TOPBAR_ANCHORS.includes(next.getAttribute('aria-label')));
+}
+
+function ensureTopbarButton(force) {
+  if (!force && topbarInPlace()) {
+    for (const spec of TOPBAR_BUTTONS) if (spec.decorate && topbarEls.get(spec.id)) spec.decorate(topbarEls.get(spec.id));
+    return;
+  }
   const anchor = findTopbarAnchor();
   // Buttons sit in order, immediately before the anchor: [news][driftcord][Inbox]
   let next = anchor;
@@ -195,17 +213,13 @@ function ensureTopbarButton() {
   }
 }
 
-// Discord's DOM changes constantly; batch checks to at most a few per second.
-let topbarPending = 0;
-function scheduleTopbarCheck() {
-  if (topbarPending) return;
-  topbarPending = setTimeout(() => { topbarPending = 0; ensureTopbarButton(); }, 300);
-}
-
+// Watching Discord's whole DOM for changes costs work on every message and
+// keystroke. Instead, check twice a second; when everything is in place the
+// check is a handful of property reads.
 function startTopbar() {
-  ensureTopbarButton();
-  new MutationObserver(scheduleTopbarCheck).observe(document.body, { childList: true, subtree: true });
+  ensureTopbarButton(true);
+  setInterval(() => { if (!document.hidden) ensureTopbarButton(); }, 500);
   store.onChange((path) => {
-    if (['showTopbarButton', 'showNewsButton', 'news.seen', '*'].includes(path)) ensureTopbarButton();
+    if (['showTopbarButton', 'showNewsButton', 'news.seen', '*'].includes(path)) ensureTopbarButton(true);
   });
 }

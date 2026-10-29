@@ -16,6 +16,8 @@ pub struct Config {
     /// Release memory after the window has been hidden/minimized a while.
     pub tray_trim: bool,
     pub tray_trim_minutes: u32,
+    /// Theme background (hex) so the window opens in the right color, not white.
+    pub background: Option<String>,
 }
 
 impl Default for Config {
@@ -26,6 +28,7 @@ impl Default for Config {
             js_optimize_size: true,
             tray_trim: true,
             tray_trim_minutes: 2,
+            background: None,
         }
     }
 }

@@ -59,6 +59,14 @@ pub struct ModStatus {
     pub updated: u64,
 }
 
+/// Seconds since a cached mod was refreshed (from `ModStatus::updated`).
+pub fn age_secs(updated: u64) -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs().saturating_sub(updated))
+        .unwrap_or(u64::MAX)
+}
+
 pub fn status(app: &AppHandle) -> Vec<ModStatus> {
     MODS.iter()
         .map(|m| {

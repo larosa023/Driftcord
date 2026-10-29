@@ -23,6 +23,7 @@ window.__driftcordOpen = () => { mountPanel(); panel && panel.toggle(true); };
 function onReady() {
   mountPanel();
   startTopbar();
+  reportBackground(((THEMES[store.get('theme')] || {}).palette || {}).base1 || '#2b2d31');
   announceUpdate();
   startUpdateChecks();
 }
@@ -34,4 +35,4 @@ setInterval(() => {
   if (panel && !panel.host.isConnected && document.body) document.body.appendChild(panel.host);
 }, 3000);
 
-console.log('%c Driftcord ' + VERSION + ' loaded ', 'background:#4fa3ff;color:#fff;border-radius:4px;padding:2px 4px');
+console.log('%c Driftcord ' + VERSION + ' loaded (' + (performance.now() - BOOT_T0).toFixed(1) + ' ms) ', 'background:#4fa3ff;color:#fff;border-radius:4px;padding:2px 4px');

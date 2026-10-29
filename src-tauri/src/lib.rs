@@ -130,6 +130,30 @@ struct Active {
     js_small: bool,
 }
 
+/// The page reports its theme background so the next launch opens in that
+/// color immediately instead of flashing white while Discord loads.
+#[tauri::command]
+fn set_background(app: AppHandle, color: String) -> Result<(), String> {
+    if parse_hex(&color).is_none() {
+        return Err("invalid color".into());
+    }
+    let mut cfg = config::load(&app);
+    if cfg.background.as_deref() != Some(color.as_str()) {
+        cfg.background = Some(color);
+        config::save(&app, &cfg)?;
+    }
+    Ok(())
+}
+
+fn parse_hex(s: &str) -> Option<tauri::webview::Color> {
+    let h = s.strip_prefix('#')?;
+    if h.len() != 6 {
+        return None;
+    }
+    let v = u32::from_str_radix(h, 16).ok()?;
+    Some(tauri::webview::Color((v >> 16) as u8, (v >> 8) as u8, v as u8, 255))
+}
+
 #[tauri::command]
 fn set_memory(app: AppHandle, js_optimize_size: Option<bool>, tray_trim: Option<bool>) -> Result<Info, String> {
     let mut cfg = config::load(&app);
@@ -260,6 +284,7 @@ pub fn run() {
             mod_fetch,
             set_lean,
             set_memory,
+            set_background,
             capture_sources,
             capture_start,
             capture_stop,
@@ -282,6 +307,9 @@ pub fn run() {
                 .title("Driftcord")
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(940.0, 500.0)
+                .background_color(
+                    cfg.background.as_deref().and_then(parse_hex).unwrap_or(tauri::webview::Color(0x13, 0x1f, 0x33, 255)),
+                )
                 .initialization_script(injection_script());
             if let Some(args) = lean::browser_args(lean, cfg.js_optimize_size) {
                 builder = builder.additional_browser_args(&args);
@@ -316,11 +344,19 @@ pub fn run() {
                 })
                 .build()?;
 
-            // Refresh the enabled mod in the background; the new copy loads next start.
+            // Refresh the enabled mod in the background (the new copy loads next
+            // start). Wait until Discord has finished loading, and skip it if the
+            // cached copy is less than 12 hours old.
             if let Some(id) = loaded_mod {
                 let h = handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    let _ = mods::download(&h, &id).await;
+                    let fresh = mods::status(&h).iter().any(|m| {
+                        m.id == id.as_str() && m.installed && mods::age_secs(m.updated) < 12 * 3600
+                    });
+                    if !fresh {
+                        let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(std::time::Duration::from_secs(45))).await;
+                        let _ = mods::download(&h, &id).await;
+                    }
                 });
             }
 

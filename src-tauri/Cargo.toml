@@ -1,6 +1,6 @@
 [package]
 name = "driftcord"
-version = "0.3.2"
+version = "0.3.3"
 description = "A lightweight, debloated, themeable Discord desktop shell"
 edition = "2021"
 rust-version = "1.90"
@@ -48,3 +48,7 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# Driftcord's own code (frame scaling, audio copying) at full speed; dependencies stay small.
+[profile.release.package.driftcord]
+opt-level = 3

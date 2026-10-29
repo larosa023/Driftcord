@@ -7,6 +7,7 @@ const COMMANDS: &[&str] = &[
     "mod_fetch",
     "set_lean",
     "set_memory",
+    "set_background",
     "capture_sources",
     "capture_start",
     "capture_stop",

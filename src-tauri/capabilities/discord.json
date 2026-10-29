@@ -15,6 +15,7 @@
     "allow-mod-fetch",
     "allow-set-lean",
     "allow-set-memory",
+    "allow-set-background",
     "allow-capture-sources",
     "allow-capture-start",
     "allow-capture-stop",

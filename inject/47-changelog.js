@@ -4,6 +4,15 @@
 
 const CHANGELOG = [
   {
+    version: '0.3.3', date: '2026-10-29', title: 'Faster & lighter',
+    items: [
+      ['improved', 'Opens straight into your theme\'s color instead of a white flash while Discord loads.'],
+      ['improved', 'Driftcord no longer watches Discord\'s whole page for changes, so busy chats cost less CPU.'],
+      ['improved', 'Mod updates wait until Discord has finished loading, and run at most twice a day.'],
+      ['improved', 'Screen share frame scaling runs on fully optimized code.'],
+    ],
+  },
+  {
     version: '0.3.2', date: '2026-10-29', title: 'What\'s new',
     items: [
       ['new', 'A What\'s new button in the top bar, with a dot when there\'s something you haven\'t read.'],

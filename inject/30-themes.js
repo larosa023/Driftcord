@@ -228,4 +228,12 @@ function renderTheme() {
 
   themeStyle.textContent = blocks.join('\n\n');
   customStyle.textContent = store.get('customCss') || '';
+  reportBackground(theme.palette ? theme.palette.base1 : '#2b2d31');
+}
+
+let lastBg = null;
+function reportBackground(color) {
+  if (color === lastBg || !bridge.available()) return;
+  lastBg = color;
+  bridge.invoke('set_background', { color }).catch(() => {});
 }
