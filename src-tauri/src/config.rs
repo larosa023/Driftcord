@@ -20,6 +20,8 @@ pub struct Config {
     pub idle_trim: bool,
     /// Run graphics inside the browser process (lighter, can cap FPS).
     pub gpu_in_process: bool,
+    /// Use Windows' own title bar instead of Discord's bar.
+    pub native_titlebar: bool,
     /// Theme background (hex) so the window opens in the right color, not white.
     pub background: Option<String>,
 }
@@ -34,6 +36,7 @@ impl Default for Config {
             tray_trim_minutes: 2,
             idle_trim: true,
             gpu_in_process: false,
+            native_titlebar: false,
             background: None,
         }
     }

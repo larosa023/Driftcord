@@ -4,6 +4,16 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.4', date: '2026-10-29', title: 'One bar & frame rate',
+    items: [
+      ['new', 'Windows\' title bar is gone: Discord\'s top bar is the title bar, with minimize, maximize and close at its right end, like the official app.'],
+      ['new', 'Drag the bar to move the window, double-click it to maximize. Edges resize as usual.'],
+      ['new', 'Frame rate setting (Clean → Performance): 60 fps, or 30 fps for very old PCs.'],
+      ['new', 'About → Performance now shows which GPU Driftcord is drawing with, and whether you\'re on battery.'],
+      ['new', 'Prefer the old look? About → Use Windows title bar.'],
+    ],
+  },
+  {
     version: '0.4.3', date: '2026-10-29', title: 'Smoother streams',
     items: [
       ['fixed', 'Choppy streams: Vencord/Equicord\'s WebScreenShare plugin forced Discord to encode 4K at 120 fps on a tiny bitrate. Driftcord now turns it off, since its own picker handles quality.'],

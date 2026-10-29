@@ -23,6 +23,7 @@ window.__driftcordOpen = () => { mountPanel(); panel && panel.toggle(true); };
 function onReady() {
   mountPanel();
   startTopbar();
+  startTitlebar();
   reportBackground(((THEMES[store.get('theme')] || {}).palette || {}).base1 || '#2b2d31');
   announceUpdate();
   announceRetiredShareMods();

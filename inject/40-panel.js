@@ -302,6 +302,7 @@ function createPanel() {
         toggleRow('showTopbarButton', 'Top bar button', 'Driftcord icon next to Discord\'s Inbox, with a quick menu'),
         toggleRow('showNewsButton', 'What\'s new button', 'Release notes, with a dot when there\'s something new'),
         toggleRow('showEdgeTab', 'Show edge tab', 'The slim tab on the right edge of the window'),
+        titlebarRow(),
         h('h2', {}, 'Settings'),
         h('div', { class: 'btns' },
           h('button', { class: 'btn', onclick: async () => {
@@ -330,6 +331,23 @@ function createPanel() {
       ];
     },
   };
+
+  function titlebarRow() {
+    const box = h('div', {});
+    if (!bridge.available()) return box;
+    const draw = (info) => {
+      const input = h('input', { type: 'checkbox', role: 'switch', checked: !!info.nativeTitlebar,
+        onchange: (e) => bridge.invoke('set_memory', { nativeTitlebar: e.target.checked }).then(draw).catch(() => {}) });
+      box.replaceChildren(...[
+        h('label', { class: 'row' }, h('span', { class: 'label' }, 'Use Windows title bar',
+          h('span', { class: 'desc' }, 'Off: Discord\'s bar is the title bar, like the official app')), h('span', { class: 'switch' }, input)),
+        info.nativeTitlebar !== info.nativeTitlebarActive ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
+          h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null,
+      ].filter(Boolean));
+    };
+    bridge.invoke('get_info').then(draw).catch(() => {});
+    return box;
+  }
 
   // Native settings (they apply before Discord loads, so they live in the app).
   function memoryRows() {

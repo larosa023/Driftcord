@@ -42,6 +42,7 @@ fn injection_script() -> String {
         include_str!("../../inject/40-panel.js"),
         include_str!("../../inject/45-topbar.js"),
         include_str!("../../inject/47-changelog.js"),
+        include_str!("../../inject/48-titlebar.js"),
         include_str!("../../inject/50-screenshare.js"),
         include_str!("../../inject/60-updates.js"),
         include_str!("../../inject/65-monitor.js"),
@@ -102,6 +103,8 @@ struct Info {
     js_optimize_size_active: bool,
     gpu_in_process: bool,
     gpu_in_process_active: bool,
+    native_titlebar: bool,
+    native_titlebar_active: bool,
     tray_trim: bool,
     idle_trim: bool,
 }
@@ -126,6 +129,8 @@ fn info(app: &AppHandle, cfg: &config::Config, loaded_mod: Option<String>) -> In
         js_optimize_size_active: app.state::<Active>().js_small,
         gpu_in_process: cfg.gpu_in_process,
         gpu_in_process_active: app.state::<Active>().gpu_in_process,
+        native_titlebar: cfg.native_titlebar,
+        native_titlebar_active: app.state::<Active>().native_titlebar,
         tray_trim: cfg.tray_trim,
         idle_trim: cfg.idle_trim,
     }
@@ -136,6 +141,7 @@ struct Active {
     lean: bool,
     js_small: bool,
     gpu_in_process: bool,
+    native_titlebar: bool,
 }
 
 /// The page reports its theme background so the next launch opens in that
@@ -169,6 +175,7 @@ fn set_memory(
     gpu_in_process: Option<bool>,
     tray_trim: Option<bool>,
     idle_trim: Option<bool>,
+    native_titlebar: Option<bool>,
 ) -> Result<Info, String> {
     let mut cfg = config::load(&app);
     if let Some(v) = js_optimize_size {
@@ -183,6 +190,9 @@ fn set_memory(
     if let Some(v) = idle_trim {
         cfg.idle_trim = v;
     }
+    if let Some(v) = native_titlebar {
+        cfg.native_titlebar = v;
+    }
     config::save(&app, &cfg)?;
     let loaded = app.state::<LoadedMod>().0.clone();
     Ok(info(&app, &cfg, loaded))
@@ -195,6 +205,69 @@ fn set_lean(app: AppHandle, enabled: bool) -> Result<Info, String> {
     config::save(&app, &cfg)?;
     let loaded = app.state::<LoadedMod>().0.clone();
     Ok(info(&app, &cfg, loaded))
+}
+
+// ── Custom title bar ─────────────────────────────────────────────────────────
+// The native title bar is off; Discord's own top bar becomes the title bar
+// (see inject/48-titlebar.js). These are the only window controls exposed.
+
+fn main_window(app: &AppHandle) -> Option<tauri::Window> {
+    app.get_webview_window(MAIN).map(|w| w.as_ref().window())
+}
+
+#[tauri::command]
+fn win_drag(app: AppHandle) {
+    if let Some(w) = main_window(&app) {
+        let _ = w.start_dragging();
+    }
+}
+
+#[tauri::command]
+fn win_resize(app: AppHandle, edge: String) {
+    use tauri_runtime::ResizeDirection as D;
+    let dir = match edge.as_str() {
+        "n" => D::North,
+        "s" => D::South,
+        "e" => D::East,
+        "w" => D::West,
+        "ne" => D::NorthEast,
+        "nw" => D::NorthWest,
+        "se" => D::SouthEast,
+        "sw" => D::SouthWest,
+        _ => return,
+    };
+    if let Some(w) = main_window(&app) {
+        let _ = w.start_resize_dragging(dir);
+    }
+}
+
+#[tauri::command]
+fn win_minimize(app: AppHandle) {
+    if let Some(w) = main_window(&app) {
+        let _ = w.minimize();
+    }
+}
+
+#[tauri::command]
+fn win_toggle_maximize(app: AppHandle) -> bool {
+    let Some(w) = main_window(&app) else { return false };
+    let max = w.is_maximized().unwrap_or(false);
+    let _ = if max { w.unmaximize() } else { w.maximize() };
+    !max
+}
+
+#[tauri::command]
+fn win_is_maximized(app: AppHandle) -> bool {
+    main_window(&app).and_then(|w| w.is_maximized().ok()).unwrap_or(false)
+}
+
+/// Close = hide to the tray, same as before.
+#[tauri::command]
+fn win_close(app: AppHandle) {
+    if let Some(w) = app.get_webview_window(MAIN) {
+        let _ = w.hide();
+        lean::on_hidden(&app);
+    }
 }
 
 // ── Native screen share ──────────────────────────────────────────────────────
@@ -313,7 +386,13 @@ pub fn run() {
             capture_sources,
             capture_start,
             capture_stop,
-            capture_ack
+            capture_ack,
+            win_drag,
+            win_resize,
+            win_minimize,
+            win_toggle_maximize,
+            win_is_maximized,
+            win_close
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -326,10 +405,20 @@ pub fn run() {
             let loaded_mod = mod_script.as_ref().and(cfg.client_mod.clone());
             app.manage(LoadedMod(loaded_mod.clone()));
             let lean = !cfg.disable_lean;
-            app.manage(Active { lean, js_small: cfg.js_optimize_size, gpu_in_process: cfg.gpu_in_process });
+            app.manage(Active {
+                lean,
+                js_small: cfg.js_optimize_size,
+                gpu_in_process: cfg.gpu_in_process,
+                native_titlebar: cfg.native_titlebar,
+            });
 
             let mut builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::External(DISCORD_URL.parse()?))
                 .title("Driftcord")
+                // One bar: Discord's top bar is the title bar (with our own
+                // controls), like the official app. Shadow keeps Windows 11's
+                // rounded corners and border.
+                .decorations(cfg.native_titlebar)
+                .shadow(true)
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(940.0, 500.0)
                 .background_color(

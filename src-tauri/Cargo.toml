@@ -1,6 +1,6 @@
 [package]
 name = "driftcord"
-version = "0.4.3"
+version = "0.4.4"
 description = "A lightweight, debloated, themeable Discord desktop shell"
 edition = "2021"
 rust-version = "1.90"
@@ -18,6 +18,8 @@ tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2.14"
+# Same version tauri already uses (for ResizeDirection in the custom title bar).
+tauri-runtime = "~2.12.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2"
