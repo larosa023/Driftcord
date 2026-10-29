@@ -23,6 +23,7 @@ window.__driftcordOpen = () => { mountPanel(); panel && panel.toggle(true); };
 function onReady() {
   mountPanel();
   startTopbar();
+  announceUpdate();
   startUpdateChecks();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady, { once: true });

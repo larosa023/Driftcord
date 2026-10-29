@@ -292,6 +292,7 @@ function createPanel() {
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Close panels'), h('kbd', {}, 'Esc')),
         h('h2', {}, 'Panel'),
         toggleRow('showTopbarButton', 'Top bar button', 'Driftcord icon next to Discord\'s Inbox, with a quick menu'),
+        toggleRow('showNewsButton', 'What\'s new button', 'Release notes, with a dot when there\'s something new'),
         toggleRow('showEdgeTab', 'Show edge tab', 'The slim tab on the right edge of the window'),
         h('h2', {}, 'Settings'),
         h('div', { class: 'btns' },

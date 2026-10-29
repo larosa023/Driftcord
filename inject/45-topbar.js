@@ -128,24 +128,30 @@ function openQuick(anchor) {
 function findTopbarAnchor() {
   for (const label of TOPBAR_ANCHORS) {
     const el = document.querySelector(`[aria-label="${label}"][role="button"], button[aria-label="${label}"]`);
-    if (el && el.id !== TOPBAR_ID) return el;
+    if (el && !el.dataset.driftcord) return el;
   }
   return null;
 }
 
-function buildTopbarButton(anchor) {
+const WAVE_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">' +
+  '<path d="M3 8c3-3 6 3 9 0s6 3 9 0M3 13c3-3 6 3 9 0s6 3 9 0M3 18c3-3 6 3 9 0s6 3 9 0"/></svg>';
+const NEWS_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M12 3l1.9 4.6L19 9.5l-4.1 3.1L16.2 18 12 15.3 7.8 18l1.3-5.4L5 9.5l5.1-1.9z"/></svg>';
+
+/** A button that borrows the Inbox button's own classes so it matches Discord. */
+function buildTopbarButton(anchor, spec) {
   const btn = document.createElement(anchor.tagName === 'BUTTON' ? 'button' : 'div');
-  btn.id = TOPBAR_ID;
-  btn.className = anchor.className;               // match Discord's own icon button styling
+  btn.id = spec.id;
+  btn.dataset.driftcord = '1';
+  btn.className = anchor.className;
+  btn.style.position = 'relative';
   btn.setAttribute('role', 'button');
   btn.setAttribute('tabindex', '0');
-  btn.setAttribute('aria-label', 'Driftcord');
-  btn.title = 'Driftcord: themes, mods & settings';
+  btn.setAttribute('aria-label', spec.label);
+  btn.title = spec.title;
 
   const anchorSvg = anchor.querySelector('svg');
-  btn.insertAdjacentHTML('beforeend',
-    '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">' +
-    '<path d="M3 8c3-3 6 3 9 0s6 3 9 0M3 13c3-3 6 3 9 0s6 3 9 0M3 18c3-3 6 3 9 0s6 3 9 0"/></svg>');
+  btn.insertAdjacentHTML('beforeend', spec.svg);
   const svg = btn.querySelector('svg');
   if (anchorSvg) {
     const cls = anchorSvg.getAttribute('class');
@@ -153,27 +159,40 @@ function buildTopbarButton(anchor) {
     for (const a of ['width', 'height']) if (anchorSvg.getAttribute(a)) svg.setAttribute(a, anchorSvg.getAttribute(a));
   }
 
-  const activate = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    quick ? closeQuick() : openQuick(btn);
-  };
+  const activate = (e) => { e.preventDefault(); e.stopPropagation(); spec.onActivate(btn); };
   btn.addEventListener('click', activate);
   btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') activate(e); });
   return btn;
 }
 
-let topbarBtn = null;
+const TOPBAR_BUTTONS = [
+  { id: 'driftcord-news-btn', label: 'What\'s new in Driftcord', title: 'What\'s new in Driftcord', svg: NEWS_SVG,
+    setting: 'showNewsButton', onActivate: (btn) => toggleChangelog(btn), decorate: (btn) => markNewsButton(btn) },
+  { id: TOPBAR_ID, label: 'Driftcord', title: 'Driftcord: themes, mods & settings', svg: WAVE_SVG,
+    setting: 'showTopbarButton', onActivate: (btn) => (quick ? closeQuick() : openQuick(btn)) },
+];
+const topbarEls = new Map(); // id -> element
+
 function ensureTopbarButton() {
-  if (!store.get('showTopbarButton')) {
-    if (topbarBtn) { topbarBtn.remove(); topbarBtn = null; }
-    return;
-  }
   const anchor = findTopbarAnchor();
-  if (!anchor) return;
-  // Already in place next to the current anchor?
-  if (topbarBtn && topbarBtn.isConnected && topbarBtn.nextElementSibling === anchor) return;
-  if (!topbarBtn || topbarBtn.className !== anchor.className) topbarBtn = buildTopbarButton(anchor);
-  anchor.parentElement.insertBefore(topbarBtn, anchor);
+  // Buttons sit in order, immediately before the anchor: [news][driftcord][Inbox]
+  let next = anchor;
+  for (const spec of [...TOPBAR_BUTTONS].reverse()) {
+    let el = topbarEls.get(spec.id);
+    if (!store.get(spec.setting)) {
+      if (el) { el.remove(); topbarEls.delete(spec.id); }
+      continue;
+    }
+    if (!anchor) continue;
+    if (!el || el.className !== anchor.className) {
+      if (el) el.remove();
+      el = buildTopbarButton(anchor, spec);
+      topbarEls.set(spec.id, el);
+    }
+    if (spec.decorate) spec.decorate(el);
+    if (!(el.isConnected && el.nextElementSibling === next)) next.parentElement.insertBefore(el, next);
+    next = el;
+  }
 }
 
 // Discord's DOM changes constantly; batch checks to at most a few per second.
@@ -186,5 +205,7 @@ function scheduleTopbarCheck() {
 function startTopbar() {
   ensureTopbarButton();
   new MutationObserver(scheduleTopbarCheck).observe(document.body, { childList: true, subtree: true });
-  store.onChange((path) => { if (path === 'showTopbarButton' || path === '*') ensureTopbarButton(); });
+  store.onChange((path) => {
+    if (['showTopbarButton', 'showNewsButton', 'news.seen', '*'].includes(path)) ensureTopbarButton();
+  });
 }

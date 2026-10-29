@@ -4,7 +4,9 @@
 
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
+// Whether Driftcord had run before (settings existed) when this page loaded.
+const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 
 const DEFAULTS = {
   theme: 'drift',
@@ -13,6 +15,8 @@ const DEFAULTS = {
   customCss: '',
   showEdgeTab: true,
   showTopbarButton: true, // Driftcord icon next to Inbox
+  showNewsButton: true,   // What's new icon next to it
+  news: { seen: null, toasted: null },
   privacy: {
     telemetry: true,     // analytics + "science" pings
     crashReports: true,  // Sentry / error reporting

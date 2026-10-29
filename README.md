@@ -51,6 +51,7 @@ The first build takes a few minutes while Rust compiles dependencies; later buil
 | Action | How |
 | --- | --- |
 | Quick menu (themes, mods, share) | The Driftcord icon next to Discord's Inbox icon |
+| Release notes | The ★ icon next to it (shows a dot after an update) |
 | Open Driftcord settings | `Ctrl+Alt+D`, the slim tab on the right edge, or tray → *Driftcord Settings* |
 | Start / stop screen share | `Ctrl+Alt+S` (while in a voice channel) |
 | Turn on Vencord or Equicord | Settings → **Mods**, pick one, *Restart now*. Plugins then live in Discord's User Settings. |
@@ -71,7 +72,8 @@ driftcord/
 │   ├── 30-themes.js        # Theme palettes → Discord CSS variables
 │   ├── 05-bridge.js        # Calls into the native app (mods, updates)
 │   ├── 40-panel.js         # The settings drawer UI and toasts
-│   ├── 45-topbar.js        # Top bar icon and quick menu
+│   ├── 45-topbar.js        # Top bar icons and quick menu
+│   ├── 47-changelog.js     # What's new panel (add release notes here)
 │   ├── 50-screenshare.js   # Share sheet, Live bar, Ctrl+Alt+S
 │   ├── 60-updates.js       # Update checks and the update prompt
 │   ├── 99-boot.js          # Wires it all together
