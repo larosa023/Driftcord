@@ -25,6 +25,7 @@ function onReady() {
   startTopbar();
   reportBackground(((THEMES[store.get('theme')] || {}).palette || {}).base1 || '#2b2d31');
   announceUpdate();
+  startMonitor();
   startUpdateChecks();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady, { once: true });

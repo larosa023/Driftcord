@@ -47,9 +47,6 @@ const LEAN_REST: &str = concat!(
 /// Chromium only honours the *last* `--disable-features` / `--js-flags`, so
 /// each appears once.
 pub fn browser_args(lean: bool, js_small: bool) -> Option<String> {
-    if !lean && !js_small {
-        return None;
-    }
     let mut args = format!("--disable-features={WRY_DEFAULT_FEATURES}");
     if lean {
         args.push(',');
@@ -59,6 +56,8 @@ pub fn browser_args(lean: bool, js_small: bool) -> Option<String> {
     if js_small {
         args.push_str(" --js-flags=--optimize-for-size");
     }
+    // Live (not 20-minute-cached) numbers for the About → Memory monitor.
+    args.push_str(" --enable-precise-memory-info");
     Some(args)
 }
 

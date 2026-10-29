@@ -44,6 +44,7 @@ fn injection_script() -> String {
         include_str!("../../inject/47-changelog.js"),
         include_str!("../../inject/50-screenshare.js"),
         include_str!("../../inject/60-updates.js"),
+        include_str!("../../inject/65-monitor.js"),
         include_str!("../../inject/99-boot.js"),
     ];
     format!(

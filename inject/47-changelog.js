@@ -8,6 +8,7 @@ const CHANGELOG = [
     items: [
       ['new', 'Driftcord now frees memory after 2 minutes in another app, while staying on screen. Click back in and it\'s instantly normal.'],
       ['improved', 'Videos you started yourself keep playing when Driftcord trims memory.'],
+      ['new', 'Memory monitor in About: JavaScript memory and page size over the last 30 minutes, to spot leaks.'],
     ],
   },
   {

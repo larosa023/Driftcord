@@ -202,10 +202,11 @@ function ensureTopbarButton(force) {
       continue;
     }
     if (!anchor) continue;
-    if (!el || el.className !== anchor.className) {
-      if (el) el.remove();
+    if (!el) {
       el = buildTopbarButton(anchor, spec);
       topbarEls.set(spec.id, el);
+    } else if (el.className !== anchor.className) {
+      el.className = anchor.className; // Discord restyled its buttons: follow along
     }
     if (spec.decorate) spec.decorate(el);
     if (!(el.isConnected && el.nextElementSibling === next)) next.parentElement.insertBefore(el, next);

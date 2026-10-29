@@ -286,6 +286,8 @@ function createPanel() {
           h('span', { class: 'desc' }, 'Updates download in the background and install on restart')), checkBtn),
         upd,
         toggleRow('updates.auto', 'Check automatically', 'On launch and every few hours'),
+        h('h2', {}, 'Memory'),
+        memoryCard(),
         h('h2', {}, 'Shortcuts'),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Open this panel'), h('kbd', {}, 'Ctrl+Alt+D')),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Start or stop screen share'), h('kbd', {}, 'Ctrl+Alt+S')),
