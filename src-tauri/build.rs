@@ -6,6 +6,7 @@ const COMMANDS: &[&str] = &[
     "install_update",
     "mod_fetch",
     "set_lean",
+    "set_memory",
     "capture_sources",
     "capture_start",
     "capture_stop",

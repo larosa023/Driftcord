@@ -228,8 +228,9 @@ function createPanel() {
           toggleRow('privacy.crashReports', 'Block crash reports', 'Error logs sent to Discord\'s crash reporting service'),
           toggleRow('privacy.silentTyping', 'Silent typing', 'Others won\'t see "… is typing"')),
         h('p', { class: 'hint' }, 'Blocked requests are answered locally, so Discord keeps working normally.'),
+        h('h2', {}, 'Memory saver'),
+        memoryRows(),
         h('h2', {}, 'Performance'),
-        leanRow(),
         h('div', {},
           toggleRow('perf.reduceMotion', 'Reduce motion', 'Turns off UI animations and transitions'),
           toggleRow('perf.noBlur', 'Disable blur effects', 'Cheaper to render on older GPUs')),
@@ -316,27 +317,32 @@ function createPanel() {
     },
   };
 
-  // Lean mode lives in the native config (it applies before Discord loads).
-  function leanRow() {
+  // Native settings (they apply before Discord loads, so they live in the app).
+  function memoryRows() {
     const box = h('div', {});
-    if (!bridge.available()) return box;
+    const nativeRow = (label, desc, checked, onChange) => {
+      const input = h('input', { type: 'checkbox', role: 'switch', checked: !!checked, onchange: (e) => onChange(e.target.checked) });
+      return h('label', { class: 'row' }, h('span', { class: 'label' }, label, h('span', { class: 'desc' }, desc)),
+        h('span', { class: 'switch' }, input));
+    };
     const draw = (info, err) => {
-      const input = h('input', { type: 'checkbox', role: 'switch', checked: !!info.lean,
-        onchange: async (e) => {
-          try { draw(await bridge.invoke('set_lean', { enabled: e.target.checked })); }
-          catch (x) { draw(info, errText(x)); }
-        } });
+      const save = (cmd, args) => bridge.invoke(cmd, args).then((i) => draw(i)).catch((x) => draw(info, errText(x)));
+      const restart = info && (info.lean !== info.leanActive || info.jsOptimizeSize !== info.jsOptimizeSizeActive);
       box.replaceChildren(...[
-        h('label', { class: 'row' },
-          h('span', { class: 'label' }, 'Lean mode',
-            h('span', { class: 'desc' }, 'Fewer background processes and less memory. Turn off only if something renders wrong.')),
-          h('span', { class: 'switch' }, input)),
-        info.lean !== info.leanActive ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
+        toggleRow('memory.noAutoplay', 'Don\'t autoplay videos', 'GIF clips and embeds play on hover or click. Calls and streams aren\'t affected'),
+        info ? nativeRow('Free memory in the tray', 'After 2 minutes minimized or in the tray. Messages and calls keep working',
+          info.trayTrim, (v) => save('set_memory', { trayTrim: v })) : null,
+        info ? nativeRow('Leaner JavaScript engine', 'Favors smaller memory over raw speed',
+          info.jsOptimizeSize, (v) => save('set_memory', { jsOptimizeSize: v })) : null,
+        info ? nativeRow('Lean mode', 'Fewer background processes. Turn off only if something renders wrong',
+          info.lean, (v) => save('set_lean', { enabled: v })) : null,
+        restart ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
           h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null,
         err ? h('p', { class: 'hint' }, err) : null,
       ].filter(Boolean));
     };
-    bridge.invoke('get_info').then((i) => draw(i)).catch(() => {});
+    draw(null);
+    if (bridge.available()) bridge.invoke('get_info').then((i) => draw(i)).catch(() => {});
     return box;
   }
 

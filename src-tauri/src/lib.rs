@@ -37,6 +37,7 @@ fn injection_script() -> String {
         include_str!("../../inject/05-bridge.js"),
         include_str!("../../inject/10-privacy.js"),
         include_str!("../../inject/20-debloat.js"),
+        include_str!("../../inject/25-memory.js"),
         include_str!("../../inject/30-themes.js"),
         include_str!("../../inject/40-panel.js"),
         include_str!("../../inject/45-topbar.js"),
@@ -73,8 +74,8 @@ fn show_main(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
-        lean::set_memory_low(&w, false);
     }
+    lean::on_shown(app);
 }
 
 // ── Commands (called from the injected layer on discord.com) ─────────────────
@@ -95,6 +96,9 @@ struct Info {
     lean: bool,
     lean_active: bool,
     native_capture: bool,
+    js_optimize_size: bool,
+    js_optimize_size_active: bool,
+    tray_trim: bool,
 }
 
 struct LoadedMod(Option<String>);
@@ -111,12 +115,33 @@ fn info(app: &AppHandle, cfg: &config::Config, loaded_mod: Option<String>) -> In
         loaded_mod,
         mods: mods::status(app),
         lean: !cfg.disable_lean,
-        lean_active: app.state::<LeanActive>().0,
+        lean_active: app.state::<Active>().lean,
         native_capture: capture::supported(),
+        js_optimize_size: cfg.js_optimize_size,
+        js_optimize_size_active: app.state::<Active>().js_small,
+        tray_trim: cfg.tray_trim,
     }
 }
 
-struct LeanActive(bool);
+/// Settings that only apply at startup, as they were when the app started.
+struct Active {
+    lean: bool,
+    js_small: bool,
+}
+
+#[tauri::command]
+fn set_memory(app: AppHandle, js_optimize_size: Option<bool>, tray_trim: Option<bool>) -> Result<Info, String> {
+    let mut cfg = config::load(&app);
+    if let Some(v) = js_optimize_size {
+        cfg.js_optimize_size = v;
+    }
+    if let Some(v) = tray_trim {
+        cfg.tray_trim = v;
+    }
+    config::save(&app, &cfg)?;
+    let loaded = app.state::<LoadedMod>().0.clone();
+    Ok(info(&app, &cfg, loaded))
+}
 
 #[tauri::command]
 fn set_lean(app: AppHandle, enabled: bool) -> Result<Info, String> {
@@ -233,6 +258,7 @@ pub fn run() {
             install_update,
             mod_fetch,
             set_lean,
+            set_memory,
             capture_sources,
             capture_start,
             capture_stop,
@@ -249,15 +275,15 @@ pub fn run() {
             let loaded_mod = mod_script.as_ref().and(cfg.client_mod.clone());
             app.manage(LoadedMod(loaded_mod.clone()));
             let lean = !cfg.disable_lean;
-            app.manage(LeanActive(lean));
+            app.manage(Active { lean, js_small: cfg.js_optimize_size });
 
             let mut builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::External(DISCORD_URL.parse()?))
                 .title("Driftcord")
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(940.0, 500.0)
                 .initialization_script(injection_script());
-            if lean {
-                builder = builder.additional_browser_args(lean::LEAN_ARGS);
+            if let Some(args) = lean::browser_args(lean, cfg.js_optimize_size) {
+                builder = builder.additional_browser_args(&args);
             }
             if let Some(script) = mod_script {
                 builder = builder.initialization_script(script);
@@ -355,20 +381,19 @@ pub fn run() {
             if window.label() != MAIN {
                 return;
             }
-            let Some(w) = window.app_handle().get_webview_window(MAIN) else { return };
             match event {
                 // Close hides to the tray, and lets WebView2 trim memory.
                 WindowEvent::CloseRequested { api, .. } => {
                     api.prevent_close();
                     let _ = window.hide();
-                    lean::set_memory_low(&w, true);
+                    lean::on_hidden(window.app_handle());
                 }
                 WindowEvent::Resized(_) => {
                     if window.is_minimized().unwrap_or(false) {
-                        lean::set_memory_low(&w, true);
+                        lean::on_hidden(window.app_handle());
                     }
                 }
-                WindowEvent::Focused(true) => lean::set_memory_low(&w, false),
+                WindowEvent::Focused(true) => lean::on_shown(window.app_handle()),
                 _ => {}
             }
         })

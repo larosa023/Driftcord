@@ -4,13 +4,30 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Which client mod to load: "vencord", "equicord" or none.
     pub client_mod: Option<String>,
     /// Lean mode (fewer WebView2 processes) is on unless this is set.
     pub disable_lean: bool,
+    /// Ask V8 to favour memory over speed (applies on restart).
+    pub js_optimize_size: bool,
+    /// Release memory after the window has been hidden/minimized a while.
+    pub tray_trim: bool,
+    pub tray_trim_minutes: u32,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            client_mod: None,
+            disable_lean: false,
+            js_optimize_size: true,
+            tray_trim: true,
+            tray_trim_minutes: 2,
+        }
+    }
 }
 
 fn path(app: &AppHandle) -> Option<PathBuf> {

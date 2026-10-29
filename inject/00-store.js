@@ -4,7 +4,7 @@
 
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 
 const DEFAULTS = {
   theme: 'drift',
@@ -22,6 +22,9 @@ const DEFAULTS = {
   perf: {
     reduceMotion: false,
     noBlur: false,
+  },
+  memory: {
+    noAutoplay: true,    // videos/GIF clips wait for hover or click
   },
   screenshare: {
     native: true,        // Driftcord's own picker + native capture

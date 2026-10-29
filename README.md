@@ -9,7 +9,8 @@ Driftcord loads Discord's own web app inside a small native window, so **every f
 - **Privacy.** Blocks Discord's analytics/"science" pings and crash reporting. Optional silent typing.
 - **Themes.** 15 built-in themes (Drift, Midnight, Frost, Ember, Nord, Dracula, Catppuccin, Gruvbox, Tokyo Night, Rosé Pine, Solarized, Forest, Sakura, Graphite, plus Stock), a custom accent color, any installed font, and a live custom CSS box for community themes.
 - **Native screen share.** One screen to pick what to share (live thumbnails of every screen and window), quality, FPS, Smooth/Balanced/Sharp and audio, then Go Live. No browser popups. Capture runs natively (Windows Graphics Capture + WASAPI): window shares send that app's audio, screen shares send everything except Driftcord so your call isn't echoed. Floating Live bar with timer, live mode switching and Stop. `Ctrl+Alt+S` starts/stops.
-- **Lean mode.** WebView2's GPU, network and audio services are folded into one process with a single renderer, and memory is trimmed whenever Driftcord is minimized or in the tray.
+- **Lean mode.** WebView2's GPU, network and audio services are folded into one process with a single renderer.
+- **Memory saver.** Videos and GIF clips play on hover/click instead of autoplaying; V8 runs with `--optimize-for-size`; after 2 minutes minimized or in the tray the page is marked invisible and WebView2 releases memory (messages and calls keep working).
 - **Vencord & Equicord.** Turn on either client mod with one click to get their full plugin libraries. Driftcord downloads the official web build and keeps it updated.
 - **Auto-updates.** The installed app checks for new Driftcord releases and updates itself in place.
 - **Desktop niceties.** Tray icon, close-to-tray, single instance, remembers window size and position, external links open in your browser.
@@ -66,6 +67,7 @@ driftcord/
 │   ├── 00-store.js         # Settings store (saved to local storage)
 │   ├── 10-privacy.js       # Telemetry / crash report / typing blocking
 │   ├── 20-debloat.js       # Hide-clutter rules (edit selectors here)
+│   ├── 25-memory.js        # No-autoplay and tray trimming (page side)
 │   ├── 30-themes.js        # Theme palettes → Discord CSS variables
 │   ├── 05-bridge.js        # Calls into the native app (mods, updates)
 │   ├── 40-panel.js         # The settings drawer UI and toasts
