@@ -52,8 +52,8 @@ function closeQuick() {
   if (!quick) return;
   quick.el.remove();
   document.removeEventListener('mousedown', quick.onDown, true);
-  window.removeEventListener('keydown', quick.onKey, true);
   window.removeEventListener('resize', closeQuick);
+  quick.pop();
   quick = null;
 }
 
@@ -115,12 +115,10 @@ function openQuick(anchor) {
     const path = e.composedPath();
     if (!path.includes(el) && !path.includes(anchor)) closeQuick();
   };
-  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeQuick(); } };
   for (const type of ['keydown', 'keyup', 'keypress']) el.addEventListener(type, (e) => { if (e.key !== 'Escape') e.stopPropagation(); });
   document.addEventListener('mousedown', onDown, true);
-  window.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', closeQuick);
-  quick = { el, onDown, onKey };
+  quick = { el, onDown, pop: pushOverlay(closeQuick) };
   el.querySelector('.item').focus({ preventScroll: true });
 }
 
@@ -219,7 +217,17 @@ function ensureTopbarButton(force) {
 // check is a handful of property reads.
 function startTopbar() {
   ensureTopbarButton(true);
-  setInterval(() => { if (!document.hidden) ensureTopbarButton(); }, 500);
+  // Check twice a second while the buttons are found; every 5 s while they
+  // aren't (e.g. before login, or Discord in a language we don't match).
+  let misses = 0;
+  const tick = () => {
+    if (!document.hidden) {
+      ensureTopbarButton();
+      misses = topbarEls.size && [...topbarEls.values()].some((el) => el.isConnected) ? 0 : misses + 1;
+    }
+    setTimeout(tick, misses > 20 ? 5000 : 500);
+  };
+  setTimeout(tick, 500);
   store.onChange((path) => {
     if (['showTopbarButton', 'showNewsButton', 'news.seen', '*'].includes(path)) ensureTopbarButton(true);
   });

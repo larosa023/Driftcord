@@ -74,34 +74,69 @@ pub fn on_hidden(app: &AppHandle) {
 
 /// Window is open but you're in another app: light trim after a while.
 pub fn on_unfocused(app: &AppHandle) {
+    // Hiding to the tray also unfocuses; don't let that replace the full trim.
+    if let Some(w) = app.get_webview_window(crate::MAIN) {
+        if !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false) {
+            return;
+        }
+    }
     let cfg = crate::config::load(app);
     schedule(app, cfg.idle_trim, cfg.tray_trim_minutes);
 }
 
+/// One worker thread handles all pending trims; new events replace the
+/// pending one instead of spawning a thread per focus change.
 fn schedule(app: &AppHandle, enabled: bool, minutes: u32) {
+    use std::sync::{mpsc, OnceLock};
+    static WORKER: OnceLock<std::sync::Mutex<mpsc::Sender<(u64, std::time::Instant, AppHandle)>>> = OnceLock::new();
+
     let gen = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     if !enabled {
         return;
     }
-    let app = app.clone();
-    let delay = Duration::from_secs(minutes.clamp(1, 60) as u64 * 60);
-    std::thread::spawn(move || {
-        std::thread::sleep(delay);
-        if GENERATION.load(Ordering::SeqCst) != gen {
-            return; // window state changed in the meantime
-        }
-        let Some(w) = app.get_webview_window(crate::MAIN) else { return };
-        let hidden = !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false);
-        let focused = w.is_focused().unwrap_or(false);
-        if hidden {
-            let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
-            trim(&w, Trim::Full);
-        } else if !focused {
-            // Still on screen: keep rendering, just release caches.
-            let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
-            trim(&w, Trim::Light);
-        }
+    let due = std::time::Instant::now() + Duration::from_secs(minutes.clamp(1, 60) as u64 * 60);
+    let tx = WORKER.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<(u64, std::time::Instant, AppHandle)>();
+        std::thread::Builder::new()
+            .name("driftcord-trim".into())
+            .spawn(move || {
+                let mut pending: Option<(u64, std::time::Instant, AppHandle)> = None;
+                loop {
+                    let msg = match &pending {
+                        Some((_, due, _)) => rx.recv_timeout(due.saturating_duration_since(std::time::Instant::now())),
+                        None => rx.recv().map_err(|_| mpsc::RecvTimeoutError::Disconnected),
+                    };
+                    match msg {
+                        Ok(next) => pending = Some(next),
+                        Err(mpsc::RecvTimeoutError::Timeout) => {
+                            if let Some((gen, _, app)) = pending.take() {
+                                if GENERATION.load(Ordering::SeqCst) == gen {
+                                    run_trim(&app);
+                                }
+                            }
+                        }
+                        Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                    }
+                }
+            })
+            .ok();
+        std::sync::Mutex::new(tx)
     });
+    let _ = tx.lock().unwrap_or_else(|e| e.into_inner()).send((gen, due, app.clone()));
+}
+
+fn run_trim(app: &AppHandle) {
+    let Some(w) = app.get_webview_window(crate::MAIN) else { return };
+    let hidden = !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false);
+    let focused = w.is_focused().unwrap_or(false);
+    if hidden {
+        let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
+        trim(&w, Trim::Full);
+    } else if !focused {
+        // Still on screen: keep rendering, just release caches.
+        let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
+        trim(&w, Trim::Light);
+    }
 }
 
 /// Window is back: undo any trimming right away.

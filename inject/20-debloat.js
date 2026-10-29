@@ -64,5 +64,5 @@ function renderDebloat() {
   if (store.get('perf.noBlur')) {
     rules.push('* { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }');
   }
-  debloatStyle.textContent = rules.join('\n');
+  setCss(debloatStyle, rules.join('\n'));
 }

@@ -105,6 +105,7 @@ The `inject/` files are concatenated at compile time (see `injection_script()` i
 
 - Debloat rules match English `aria-label`s, so a few toggles won't work if Discord's language is set to something else.
 - RAM use is roughly that of one Discord browser tab, because it *is* Discord's web app. WebView2 always needs a few processes (browser, renderer, crash reporter); Lean mode keeps it to that minimum. If something renders wrong, use tray → *Restart without Lean mode*.
+- Lean mode turns off Chromium's site isolation (so third-party embeds share the page's renderer). That's what allows a single renderer process; turn Lean mode off if you'd rather keep it.
 - Equicord is about 4× the size of Vencord (370+ plugins vs 180), so pick Vencord if memory matters most.
 - Remote `@import` lines in custom CSS may be blocked by Discord's content security policy. Paste the theme's full CSS instead.
 - Windows is the primary target. macOS and Linux should build but haven't been tested.

@@ -5,11 +5,11 @@
 function h(tag, attrs, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
-    if (v == null || v === false) continue;
+    if (v == null) continue;
     if (k === 'class') el.className = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k.startsWith('on')) { if (v) el.addEventListener(k.slice(2), v); }
     else if (k in el && k !== 'list') el[k] = v;
-    else el.setAttribute(k, v === true ? '' : v);
+    else if (v !== false) el.setAttribute(k, v === true ? '' : v);
   }
   for (const c of children.flat()) if (c != null && c !== false) el.append(c);
   return el;
@@ -305,7 +305,12 @@ function createPanel() {
           h('button', { class: 'btn', onclick: async () => {
             try {
               const parsed = JSON.parse(await navigator.clipboard.readText());
-              for (const [k, v] of Object.entries(parsed)) if (k in DEFAULTS) store.set(k, v);
+              for (const [k, v] of Object.entries(parsed)) {
+                if (!(k in DEFAULTS)) continue;
+                const base = DEFAULTS[k];
+                const ok = base && typeof base === 'object' ? v && typeof v === 'object' && !Array.isArray(v) : typeof v === typeof base || base === null || base === '';
+                if (ok) store.set(k, base && typeof base === 'object' ? deepMerge(base, v) : v);
+              }
               status.textContent = 'Settings imported.'; render();
             } catch (_) { status.textContent = 'Clipboard doesn\'t contain Driftcord settings.'; }
           } }, 'Import from clipboard'),
@@ -415,11 +420,17 @@ function createPanel() {
     main.scrollTop = scroll;
   }
 
+  let popOverlay = null;
   function toggle(force, tab) {
     const open = force ?? !wrap.classList.contains('open');
     if (tab && tabs[tab]) current = tab;
     wrap.classList.toggle('open', open);
-    if (open) render();
+    if (open) {
+      render();
+      if (!popOverlay) popOverlay = pushOverlay(() => toggle(false));
+    } else if (popOverlay) {
+      popOverlay(); popOverlay = null;
+    }
   }
 
   // ── Toasts
@@ -444,11 +455,7 @@ function createPanel() {
   });
 
   window.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.altKey && !e.shiftKey && e.code === 'KeyD') {
-      e.preventDefault(); e.stopPropagation(); toggle();
-    } else if (e.key === 'Escape' && wrap.classList.contains('open')) {
-      e.preventDefault(); e.stopPropagation(); toggle(false);
-    }
+    if (isShortcut(e, 'KeyD')) { e.preventDefault(); e.stopPropagation(); toggle(); }
   }, true);
 
   // Keep keystrokes typed in the panel from reaching Discord's global hotkeys.

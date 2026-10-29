@@ -104,15 +104,22 @@ pub fn startup_script(app: &AppHandle, id: &str) -> Option<String> {
     ))
 }
 
-fn client() -> Result<reqwest::Client, String> {
+/// `public_only`: for requests on behalf of mods (GM_xmlhttpRequest), only
+/// public addresses, checked at DNS time and without a proxy. Downloads of the
+/// mods themselves come from GitHub and may use the system proxy.
+fn client(public_only: bool) -> Result<reqwest::Client, String> {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         let _ = rustls::crypto::ring::default_provider().install_default();
     });
-    reqwest::Client::builder()
+    let mut b = reqwest::Client::builder()
         .user_agent(concat!("Driftcord/", env!("CARGO_PKG_VERSION")))
-        .timeout(Duration::from_secs(90))
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+        .timeout(Duration::from_secs(90));
+    if public_only {
+        // Resolution must go through the check, not a proxy.
+        b = b.dns_resolver(PublicOnlyResolver).no_proxy();
+    }
+    b.redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() > 8 || !is_public_url(attempt.url()) {
                 attempt.stop()
             } else {
@@ -126,7 +133,7 @@ fn client() -> Result<reqwest::Client, String> {
 /// Download (or refresh) a mod into the cache. Returns the new size in bytes.
 pub async fn download(app: &AppHandle, id: &str) -> Result<u64, String> {
     let src = find(id).ok_or("unknown mod")?;
-    let res = client()?.get(src.url).send().await.map_err(|e| format!("download failed: {e}"))?;
+    let res = client(false)?.get(src.url).send().await.map_err(|e| format!("download failed: {e}"))?;
     if !res.status().is_success() {
         return Err(format!("download failed: HTTP {}", res.status()));
     }
@@ -154,17 +161,59 @@ pub async fn download(app: &AppHandle, id: &str) -> Result<u64, String> {
 fn is_public_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
+            let o = v4.octets();
             !(v4.is_private()
                 || v4.is_loopback()
                 || v4.is_link_local()
                 || v4.is_unspecified()
                 || v4.is_broadcast()
-                || v4.octets()[0] == 100 && (64..128).contains(&v4.octets()[1]))
+                || v4.is_multicast()
+                || o[0] == 0                                   // 0.0.0.0/8
+                || o[0] == 100 && (64..128).contains(&o[1])    // carrier-grade NAT
+                || o[0] == 192 && o[1] == 0 && o[2] == 0       // 192.0.0.0/24
+                || o[0] == 198 && (o[1] == 18 || o[1] == 19)   // benchmarking
+                || o[0] >= 240) // reserved
         }
         IpAddr::V6(v6) => {
-            let seg0 = v6.segments()[0];
-            !(v6.is_loopback() || v6.is_unspecified() || (seg0 & 0xfe00) == 0xfc00 || (seg0 & 0xffc0) == 0xfe80)
+            // IPv4-mapped (::ffff:a.b.c.d) and NAT64 (64:ff9b::/96) carry an IPv4 address.
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_public_ip(IpAddr::V4(v4));
+            }
+            let seg = v6.segments();
+            if seg[0] == 0x64 && seg[1] == 0xff9b {
+                return false;
+            }
+            !(v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_multicast()
+                || (seg[0] & 0xfe00) == 0xfc00 // unique local
+                || (seg[0] & 0xffc0) == 0xfe80) // link local
         }
+    }
+}
+
+/// Resolves hostnames and refuses any that point at a non-public address, so
+/// names like `127.0.0.1.nip.io`, DNS rebinding and redirects to them can't
+/// reach your PC or local network. Applies to every connection, including
+/// redirects, because it runs at connect time.
+struct PublicOnlyResolver;
+
+impl reqwest::dns::Resolve for PublicOnlyResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            let addrs = tauri::async_runtime::spawn_blocking(move || {
+                use std::net::ToSocketAddrs;
+                (host.as_str(), 0u16).to_socket_addrs().map(|it| it.collect::<Vec<_>>())
+            })
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })??;
+            let public: Vec<std::net::SocketAddr> = addrs.into_iter().filter(|a| is_public_ip(a.ip())).collect();
+            if public.is_empty() {
+                return Err("blocked: host doesn't resolve to a public address".into());
+            }
+            Ok(Box::new(public.into_iter()) as reqwest::dns::Addrs)
+        })
     }
 }
 
@@ -211,7 +260,7 @@ pub async fn fetch(req: FetchRequest) -> Result<FetchResponse, String> {
     let method = reqwest::Method::from_bytes(req.method.as_deref().unwrap_or("GET").to_ascii_uppercase().as_bytes())
         .map_err(|_| "invalid method")?;
 
-    let mut rb = client()?.request(method, url.as_str());
+    let mut rb = client(true)?.request(method, url.as_str());
     for (k, v) in &req.headers {
         let lk = k.to_ascii_lowercase();
         // Never forward Discord session headers to third parties.
@@ -236,9 +285,13 @@ pub async fn fetch(req: FetchRequest) -> Result<FetchResponse, String> {
         .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("")))
         .collect::<Vec<_>>()
         .join("\r\n");
-    let body = res.bytes().await.map_err(|e| e.to_string())?;
-    if body.len() > MAX_FETCH_BYTES {
-        return Err("response too large".into());
+    let mut res = res;
+    let mut body: Vec<u8> = Vec::new();
+    while let Some(chunk) = res.chunk().await.map_err(|e| e.to_string())? {
+        if body.len() + chunk.len() > MAX_FETCH_BYTES {
+            return Err("response too large".into());
+        }
+        body.extend_from_slice(&chunk);
     }
 
     Ok(FetchResponse {

@@ -4,6 +4,21 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.0', date: '2026-10-29', title: 'Polish & hardening',
+    items: [
+      ['fixed', 'Switching what you share mid-stream could freeze the stream or crash Driftcord.'],
+      ['fixed', 'Reloading Discord now always stops an active screen share.'],
+      ['fixed', 'If capture or audio stops on its own, you get a message instead of a frozen stream.'],
+      ['improved', 'Screen share scales smoothly to any quality setting, using far less CPU when sharing a bigger screen at a lower quality.'],
+      ['improved', 'The share picker keeps keyboard focus, refreshes previews without flicker, and never stacks refreshes if an app is frozen.'],
+      ['improved', 'Esc closes one panel at a time, and Ctrl+Alt shortcuts no longer trigger when typing with AltGr (ś, Đ…).'],
+      ['improved', 'No-autoplay is stricter: only a click on that video plays it, not any recent keypress.'],
+      ['improved', 'Fewer background threads and file reads, and less page restyling while you adjust themes.'],
+      ['improved', 'The tray tooltip shows when you\'re sharing your screen.'],
+      ['fixed', 'Only Discord\'s app pages can use Driftcord\'s features, screen share only accepts sources you picked, and plugin network requests can\'t reach your local network.'],
+    ],
+  },
+  {
     version: '0.3.5', date: '2026-10-29', title: 'No echo when sharing your screen',
     items: [
       ['fixed', 'Sharing your entire screen with audio no longer sends your call back to the people in it.'],
@@ -142,8 +157,8 @@ function closeChangelog() {
   if (!news) return;
   news.el.remove();
   document.removeEventListener('mousedown', news.onDown, true);
-  window.removeEventListener('keydown', news.onKey, true);
   window.removeEventListener('resize', closeChangelog);
+  news.pop();
   news = null;
 }
 
@@ -174,12 +189,10 @@ function toggleChangelog(anchor) {
   p.layer.append(el);
 
   const onDown = (e) => { const path = e.composedPath(); if (!path.includes(el) && !path.includes(anchor)) closeChangelog(); };
-  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeChangelog(); } };
   for (const type of ['keydown', 'keyup', 'keypress']) el.addEventListener(type, (e) => { if (e.key !== 'Escape') e.stopPropagation(); });
   document.addEventListener('mousedown', onDown, true);
-  window.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', closeChangelog);
-  news = { el, onDown, onKey };
+  news = { el, onDown, pop: pushOverlay(closeChangelog) };
 
   // Opening it counts as reading it.
   if (hasUnreadNews()) store.set('news.seen', VERSION);

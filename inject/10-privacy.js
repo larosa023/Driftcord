@@ -38,12 +38,8 @@ XHR.send = function () {
   const fake = { readyState: 4, status: 204, statusText: 'No Content', responseText: '', response: '' };
   for (const [k, v] of Object.entries(fake)) Object.defineProperty(this, k, { value: v, configurable: true });
   setTimeout(() => {
-    for (const type of ['readystatechange', 'load', 'loadend']) {
-      const ev = new ProgressEvent(type);
-      const handler = this['on' + type];
-      if (typeof handler === 'function') handler.call(this, ev);
-      this.dispatchEvent(ev);
-    }
+    // dispatchEvent also runs onreadystatechange/onload/onloadend handlers.
+    for (const type of ['readystatechange', 'load', 'loadend']) this.dispatchEvent(new ProgressEvent(type));
   }, 0);
 };
 

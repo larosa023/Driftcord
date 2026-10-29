@@ -191,10 +191,12 @@ fn set_lean(app: AppHandle, enabled: bool) -> Result<Info, String> {
 // ── Native screen share ──────────────────────────────────────────────────────
 
 #[tauri::command]
-async fn capture_sources(thumbs: bool) -> Result<Vec<capture::Source>, String> {
-    tauri::async_runtime::spawn_blocking(move || capture::list_sources(thumbs))
+async fn capture_sources(app: AppHandle, thumbs: bool) -> Result<Vec<capture::Source>, String> {
+    let list = tauri::async_runtime::spawn_blocking(move || capture::list_sources(thumbs))
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())??;
+    capture::remember_listed(&app.state::<capture::CaptureState>(), &list);
+    Ok(list)
 }
 
 #[tauri::command]
@@ -211,9 +213,12 @@ async fn capture_stop(app: AppHandle) {
     let _ = tauri::async_runtime::spawn_blocking(move || capture::stop(&app.state::<capture::CaptureState>())).await;
 }
 
+/// Batched acks from the page: `[[slotId, seq], …]`. Async so it never runs
+/// on the UI thread, which is busy posting frames.
 #[tauri::command]
-fn capture_ack(state: State<'_, capture::CaptureState>, id: u32) {
-    capture::ack(&state, id);
+async fn capture_ack(state: State<'_, capture::CaptureState>, acks: Vec<(u32, u64)>) -> Result<(), ()> {
+    capture::ack(&state, &acks);
+    Ok(())
 }
 
 /// Choose which mod loads on next start (`None` turns mods off). Downloads it
@@ -329,7 +334,14 @@ pub fn run() {
                 builder = builder.initialization_script(script);
             }
 
+            let load_handle = handle.clone();
             builder
+                .on_page_load(move |_w, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Started {
+                        let h = load_handle.clone();
+                        std::thread::spawn(move || capture::stop(&h.state::<capture::CaptureState>()));
+                    }
+                })
                 // Keep the main window on Discord; send everything else to the browser.
                 .on_navigation(move |url| {
                     if is_allowed(url) {
@@ -344,13 +356,12 @@ pub fn run() {
                     open_external(&popup_handle, &url);
                     NewWindowResponse::Deny
                 })
-                // Voice, video, screen share, notifications and paste need these.
+                // Voice, video, screen share and notifications need these.
                 .on_permission_request(|_webview, kind| match kind {
                     PermissionKind::Microphone
                     | PermissionKind::Camera
                     | PermissionKind::DisplayCapture
-                    | PermissionKind::Notifications
-                    | PermissionKind::ClipboardRead => PermissionResponse::Allow,
+                    | PermissionKind::Notifications => PermissionResponse::Allow,
                     _ => PermissionResponse::Default,
                 })
                 .build()?;

@@ -81,16 +81,15 @@ const SHARE_CSS = `
 
 .live { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 2147483646;
   display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-radius: 99px;
-  background: color-mix(in srgb, var(--d-bg) 88%, transparent); color: var(--d-text);
+  background: var(--d-bg); color: var(--d-text);
   border: 1px solid var(--d-line); box-shadow: 0 10px 30px rgb(0 0 0 / .4);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   font: 13px/1 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; animation: liveIn .25s cubic-bezier(.2,.8,.2,1);
   user-select: none; }
 @keyframes liveIn { from { opacity: 0; transform: translate(-50%, -8px); } }
 .live .rec { display: flex; align-items: center; gap: 7px; font-weight: 700; letter-spacing: .04em; font-size: 11.5px; }
-.live .rec i { width: 8px; height: 8px; border-radius: 50%; background: #f04848; box-shadow: 0 0 0 0 rgb(240 72 72 / .6);
-  animation: ping 1.8s infinite; }
-@keyframes ping { 70% { box-shadow: 0 0 0 7px rgb(240 72 72 / 0); } 100% { box-shadow: 0 0 0 0 rgb(240 72 72 / 0); } }
+.live .rec i { width: 8px; height: 8px; border-radius: 50%; background: #f04848; will-change: opacity;
+  animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .35; } }
 .live .what { color: var(--d-muted); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .live .time { font-variant-numeric: tabular-nums; font-weight: 600; }
 .live .seg { padding: 2px; border-radius: 99px; }
@@ -102,6 +101,7 @@ const SHARE_CSS = `
 .live .min:hover { background: var(--d-hover); color: var(--d-text); }
 .live.small .what, .live.small .seg, .live.small .time { display: none; }
 @media (prefers-reduced-motion: reduce) { .share-scrim, .picker, .live, .live .rec i, .skel .shot { animation: none; } }
+.picker:focus { outline: none; }
 `;
 
 let shareStylesAdded = false;
@@ -118,6 +118,17 @@ const cancelled = () => new DOMException('Screen share was cancelled', 'NotAllow
 
 let native = null; // the active native share
 
+// Acks are batched: one IPC call per ~16 ms instead of one per frame/chunk.
+let pendingAcks = [];
+let ackTimer = 0;
+function queueAck(id, seq) {
+  pendingAcks.push([id, seq]);
+  if (!ackTimer) ackTimer = setTimeout(() => {
+    const acks = pendingAcks; pendingAcks = []; ackTimer = 0;
+    bridge.invoke('capture_ack', { acks }).catch(() => {});
+  }, 16);
+}
+
 function onSharedBuffer(e) {
   let buf, meta;
   try { buf = e.getBuffer(); meta = e.additionalData || {}; } catch (_) { return; }
@@ -129,12 +140,18 @@ function onSharedBuffer(e) {
     console.warn('[Driftcord] frame dropped', err);
   } finally {
     try { WV.releaseBuffer(buf); } catch (_) {}
-    if (meta.id != null) bridge.invoke('capture_ack', { id: meta.id }).catch(() => {});
+    // Only a live share acks; stray frames (e.g. right after a reload) aren't.
+    if (s && meta.id != null) queueAck(meta.id, meta.seq || 0);
   }
 }
 if (WV && WV.addEventListener) WV.addEventListener('sharedbufferreceived', onSharedBuffer);
 
-window.__driftcordCaptureEnded = () => { if (native) native.end(true); };
+window.__driftcordCaptureEnded = (reason) => {
+  if (!native) return;
+  native.end(true);
+  if (reason) toast('Screen share ended', { sub: reason, duration: 5000 });
+};
+window.__driftcordCaptureWarning = (message) => toast('Screen share', { sub: message, duration: 7000 });
 
 /** Builds the MediaStream Discord receives, fed by native frames. */
 function createNativeShare(source, opts) {
@@ -179,12 +196,14 @@ function createNativeShare(source, opts) {
       aWriter.write(data).catch(() => data.close());
     },
 
-    /** Stop capturing. `external` = ended by the OS (e.g. window closed). */
-    end(external) {
+    /** Stop capturing. `external` = ended outside Discord (window closed,
+     *  Stop button). `replaced` = a new share is starting, which stops this
+     *  one itself, so no separate stop is sent. */
+    end(external, replaced) {
       if (share.ended) return;
       share.ended = true;
       if (native === share) native = null;
-      bridge.invoke('capture_stop').catch(() => {});
+      if (!replaced) bridge.invoke('capture_stop').catch(() => {});
       for (const w of [vWriter, aWriter]) if (w) w.close().catch(() => {});
       for (const t of share.stream.getTracks()) {
         realStop.call(t);
@@ -201,13 +220,14 @@ function createNativeShare(source, opts) {
 }
 
 async function startNativeShare(source, opts) {
-  if (native) native.end(false);
+  if (native) native.end(false, true);
   const share = createNativeShare(source, opts);
   native = share; // receive frames as soon as they arrive
   const res = SHARE_RES[opts.res] || SHARE_RES['1080p'];
+  const fps = SHARE_FPS.includes(Number(opts.fps)) ? Number(opts.fps) : 30;
   try {
     await bridge.invoke('capture_start', { req: {
-      source: source.id, maxWidth: res.w, maxHeight: res.h, fps: opts.fps, audio: !!opts.audio && !!share.audio,
+      source: source.id, maxWidth: res.w, maxHeight: res.h, fps, audio: !!opts.audio && !!share.audio,
     } });
   } catch (e) {
     share.end(false);
@@ -241,6 +261,8 @@ function sharePicker() {
     let sources = null, error = '', tab = store.get('screenshare.lastTab') || 'screen';
     let selected = store.get('screenshare.lastSource') || null;
     let refreshTimer = 0, closed = false, busy = false;
+    let gridKey = '';
+    const cards = new Map();
 
     const scrim = h('div', { class: 'share-scrim' });
     const tabsEl = h('div', { class: 'tabs', role: 'tablist' });
@@ -258,8 +280,9 @@ function sharePicker() {
     function done(result) {
       if (closed) return;
       closed = true;
-      clearInterval(refreshTimer);
+      clearTimeout(refreshTimer);
       scrim.remove();
+      popOverlay();
       window.removeEventListener('keydown', onKey, true);
       if (result) resolve(result); else reject(cancelled());
     }
@@ -298,16 +321,38 @@ function sharePicker() {
         grid.replaceChildren(h('div', { class: 'empty' }, error || (tab === 'window' ? 'No windows to share.' : 'No screens found.')));
         return;
       }
+      const key = list.map((s) => s.id + '|' + s.name).join('\n');
+      if (key === gridKey) {
+        // Same sources: just refresh previews and selection, keep focus and hover.
+        for (const s of list) {
+          const card = cards.get(s.id);
+          if (!card) continue;
+          card.setAttribute('aria-pressed', String(s.id === selected));
+          const img = card.querySelector('img');
+          if (s.thumb && img && img.src !== s.thumb) img.src = s.thumb;
+          else if (s.thumb && !img) card.querySelector('.shot').prepend(h('img', { src: s.thumb, alt: '', draggable: false }));
+        }
+        return;
+      }
+      gridKey = key;
+      cards.clear();
       grid.replaceChildren(...list.map((s) => {
         const shot = h('div', { class: 'shot' });
         if (s.thumb) shot.append(h('img', { src: s.thumb, alt: '', draggable: false }));
         else shot.append(h('span', { class: 'ph' }, (s.detail || s.name || '?').slice(0, 1).toUpperCase()));
         if (s.primary) shot.append(h('span', { class: 'badge' }, 'Main'));
-        return h('button', { class: 'src', role: 'option', 'aria-pressed': String(s.id === selected), title: s.name,
+        const card = h('button', { class: 'src', role: 'option', 'aria-pressed': String(s.id === selected), title: s.name,
           onclick: () => { selected = s.id; drawGrid(); drawFooter(); },
           ondblclick: () => { selected = s.id; goLive(s); } },
           shot, h('div', { class: 't' }, s.name), h('div', { class: 'd' }, s.detail || ' '));
+        cards.set(s.id, card);
+        return card;
       }));
+      // Keyboard users land on the selected source.
+      const active = layer.getRootNode().activeElement;
+      if (!active || active === dialog || !dialog.contains(active)) {
+        (cards.get(selected) || grid.querySelector('.src'))?.focus({ preventScroll: true });
+      }
     }
 
     function drawFooter() {
@@ -348,6 +393,7 @@ function sharePicker() {
         }
         if (!sources.some((s) => s.kind === tab) && sources.length) tab = sources[0].kind;
       } catch (e) {
+        gridKey = '';
         error = 'Couldn\'t list screens and windows: ' + errText(e);
         sources = sources || [];
       }
@@ -357,20 +403,35 @@ function sharePicker() {
       grid.scrollTop = scroll;
     }
 
+    // Enter on a source card (or the dialog itself) goes live; on any other
+    // button it just presses that button.
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); }
-      else if (e.key === 'Enter' && !e.target.closest?.('button.link')) { e.preventDefault(); e.stopPropagation(); goLive(); }
+      if (e.key !== 'Enter' || e.repeat) return;
+      const t = e.composedPath()[0];
+      if (t === dialog || (t && t.classList && t.classList.contains('src'))) {
+        e.preventDefault(); e.stopPropagation(); goLive();
+      }
     };
+    const popOverlay = pushOverlay(() => done(null));
 
     scrim.addEventListener('mousedown', (e) => { if (e.target === scrim) done(null); });
-    for (const type of ['keydown', 'keyup', 'keypress']) dialog.addEventListener(type, (e) => { if (e.key !== 'Escape' && e.key !== 'Enter') e.stopPropagation(); });
+    // Nothing typed while the picker is open reaches Discord.
+    for (const type of ['keydown', 'keyup', 'keypress']) dialog.addEventListener(type, (e) => { if (e.key !== 'Escape') e.stopPropagation(); });
+    dialog.tabIndex = -1;
     scrim.append(dialog);
     layer.append(scrim);
     window.addEventListener('keydown', onKey, true);
+    dialog.focus({ preventScroll: true });
 
     drawTabs(); drawGrid(); drawFooter();
-    load(true);
-    refreshTimer = setInterval(() => { if (!document.hidden) load(true); }, 4000); // keep previews live
+    // Keep previews live: refresh 4 s after the previous refresh finishes
+    // (never overlapping, and paused while Driftcord is in the background).
+    const tick = async () => {
+      if (closed) return;
+      if (!document.hidden) await load(true);
+      if (!closed) refreshTimer = setTimeout(tick, 4000);
+    };
+    tick();
   });
 }
 
@@ -504,7 +565,7 @@ function findShareButton() {
 }
 
 window.addEventListener('keydown', (e) => {
-  if (!(e.ctrlKey && e.altKey && !e.shiftKey && e.code === 'KeyS')) return;
+  if (!isShortcut(e, 'KeyS')) return;
   e.preventDefault(); e.stopPropagation();
   if (live) { stopStream(live.stream); return; }
   const btn = findShareButton();

@@ -5,7 +5,7 @@
 const BOOT_T0 = performance.now();
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.3.5';
+const VERSION = '0.4.0';
 // Whether Driftcord had run before (settings existed) when this page loaded.
 const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 
@@ -97,6 +97,11 @@ const store = (() => {
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };
 })();
+
+/** Rewriting a <style> makes the whole page restyle, so only do it on change. */
+function setCss(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
 
 // Inject a <style> that we own and can rewrite later.
 function ownStyle(id) {

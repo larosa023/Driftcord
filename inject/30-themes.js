@@ -226,8 +226,8 @@ function renderTheme() {
     blocks.push(`${THEME_SCOPE} { --font-primary: ${stack} !important; --font-display: ${stack} !important; --font-headline: ${stack} !important; }`);
   }
 
-  themeStyle.textContent = blocks.join('\n\n');
-  customStyle.textContent = store.get('customCss') || '';
+  setCss(themeStyle, blocks.join('\n\n'));
+  setCss(customStyle, store.get('customCss') || '');
   reportBackground(theme.palette ? theme.palette.base1 : '#2b2d31');
 }
 
