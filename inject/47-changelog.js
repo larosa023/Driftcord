@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.1', date: '2026-10-29', title: 'Pink Noir',
+    items: [
+      ['new', 'Pink Noir theme: true black for OLED screens with hot pink accents.'],
+    ],
+  },
+  {
     version: '0.4.0', date: '2026-10-29', title: 'Polish & hardening',
     items: [
       ['fixed', 'Switching what you share mid-stream could freeze the stream or crash Driftcord.'],
