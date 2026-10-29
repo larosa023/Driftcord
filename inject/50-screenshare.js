@@ -458,7 +458,14 @@ if (mediaDevices && mediaDevices.getDisplayMedia) {
     const audio = store.get('screenshare.audio');
     const c = { ...constraints };
     c.video = typeof c.video === 'object' && c.video ? { ...c.video } : (c.video ?? true);
-    if (audio) { c.audio = c.audio || true; c.systemAudio = 'include'; } else c.audio = false;
+    if (audio) {
+      // restrictOwnAudio: leave out sound this page plays (your call), so
+      // friends don't hear themselves. suppressLocalAudioPlayback stays off so
+      // you still hear everything.
+      const base = typeof c.audio === 'object' && c.audio ? c.audio : {};
+      c.audio = { ...base, restrictOwnAudio: true, suppressLocalAudioPlayback: false };
+      c.systemAudio = 'include';
+    } else c.audio = false;
     c.selfBrowserSurface ??= 'exclude';
     c.surfaceSwitching ??= 'include';
     c.monitorTypeSurfaces ??= 'include';

@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.3.5', date: '2026-10-29', title: 'No echo when sharing your screen',
+    items: [
+      ['fixed', 'Sharing your entire screen with audio no longer sends your call back to the people in it.'],
+      ['fixed', 'The "Use Windows picker" fallback also leaves your call out of shared audio.'],
+    ],
+  },
+  {
     version: '0.3.4', date: '2026-10-29', title: 'Lighter in the background',
     items: [
       ['new', 'Driftcord now frees memory after 2 minutes in another app, while staying on screen. Click back in and it\'s instantly normal.'],

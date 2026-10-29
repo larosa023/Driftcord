@@ -621,8 +621,28 @@ mod win {
         Some((kind, raw.parse().ok()?))
     }
 
+    /// The WebView2 browser process. Discord's voice audio is played from it
+    /// (or its audio child process), so that's the tree to exclude from a
+    /// screen share, not just driftcord.exe.
+    fn webview_browser_pid(window: &WebviewWindow) -> Option<u32> {
+        let (tx, rx) = mpsc::channel();
+        window
+            .with_webview(move |pv| {
+                let pid = unsafe {
+                    pv.controller().CoreWebView2().ok().and_then(|core| {
+                        let mut pid = 0u32;
+                        core.BrowserProcessId(&mut pid).ok().map(|_| pid)
+                    })
+                };
+                let _ = tx.send(pid.filter(|p| *p != 0));
+            })
+            .ok()?;
+        rx.recv_timeout(Duration::from_secs(2)).ok().flatten()
+    }
+
     pub fn start(state: &CaptureState, window: WebviewWindow, req: StartRequest) -> Result<StartInfo, String> {
         stop(state);
+        let exclude_pid = webview_browser_pid(&window).unwrap_or_else(std::process::id);
         let (kind, raw) = parse_source(&req.source).ok_or("unknown source")?;
         let fps = req.fps.clamp(5, 120);
 
@@ -664,12 +684,13 @@ mod win {
         }
 
         // Audio: a window shares its own app's sound; a screen shares
-        // everything except Driftcord (so your call isn't echoed back).
+        // everything except Driftcord's WebView2 processes, which play your
+        // call, so friends never hear themselves.
         let (video, audio_target) = match kind {
             "screen" => {
                 let m = Monitor::from_raw_hmonitor(raw as *mut core::ffi::c_void);
                 let ctl = Video::start_free_threaded(settings!(m)).map_err(|e| format!("Couldn't start capture: {e}"))?;
-                (ctl, (std::process::id(), false))
+                (ctl, (exclude_pid, false))
             }
             "window" => {
                 let w = Window::from_raw_hwnd(raw as *mut core::ffi::c_void);
