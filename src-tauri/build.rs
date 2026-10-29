@@ -12,6 +12,12 @@ const COMMANDS: &[&str] = &[
     "capture_start",
     "capture_stop",
     "capture_ack",
+    "win_drag",
+    "win_resize",
+    "win_minimize",
+    "win_toggle_maximize",
+    "win_is_maximized",
+    "win_close",
 ];
 
 fn main() {

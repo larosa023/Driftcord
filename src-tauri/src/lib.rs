@@ -197,6 +197,69 @@ fn set_lean(app: AppHandle, enabled: bool) -> Result<Info, String> {
     Ok(info(&app, &cfg, loaded))
 }
 
+// ── Custom title bar ─────────────────────────────────────────────────────────
+// The native title bar is off; Discord's own top bar becomes the title bar
+// (see inject/48-titlebar.js). These are the only window controls exposed.
+
+fn main_window(app: &AppHandle) -> Option<tauri::Window> {
+    app.get_webview_window(MAIN).map(|w| w.as_ref().window())
+}
+
+#[tauri::command]
+fn win_drag(app: AppHandle) {
+    if let Some(w) = main_window(&app) {
+        let _ = w.start_dragging();
+    }
+}
+
+#[tauri::command]
+fn win_resize(app: AppHandle, edge: String) {
+    use tauri_runtime::ResizeDirection as D;
+    let dir = match edge.as_str() {
+        "n" => D::North,
+        "s" => D::South,
+        "e" => D::East,
+        "w" => D::West,
+        "ne" => D::NorthEast,
+        "nw" => D::NorthWest,
+        "se" => D::SouthEast,
+        "sw" => D::SouthWest,
+        _ => return,
+    };
+    if let Some(w) = main_window(&app) {
+        let _ = w.start_resize_dragging(dir);
+    }
+}
+
+#[tauri::command]
+fn win_minimize(app: AppHandle) {
+    if let Some(w) = main_window(&app) {
+        let _ = w.minimize();
+    }
+}
+
+#[tauri::command]
+fn win_toggle_maximize(app: AppHandle) -> bool {
+    let Some(w) = main_window(&app) else { return false };
+    let max = w.is_maximized().unwrap_or(false);
+    let _ = if max { w.unmaximize() } else { w.maximize() };
+    !max
+}
+
+#[tauri::command]
+fn win_is_maximized(app: AppHandle) -> bool {
+    main_window(&app).and_then(|w| w.is_maximized().ok()).unwrap_or(false)
+}
+
+/// Close = hide to the tray, same as before.
+#[tauri::command]
+fn win_close(app: AppHandle) {
+    if let Some(w) = app.get_webview_window(MAIN) {
+        let _ = w.hide();
+        lean::on_hidden(&app);
+    }
+}
+
 // ── Native screen share ──────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -313,7 +376,13 @@ pub fn run() {
             capture_sources,
             capture_start,
             capture_stop,
-            capture_ack
+            capture_ack,
+            win_drag,
+            win_resize,
+            win_minimize,
+            win_toggle_maximize,
+            win_is_maximized,
+            win_close
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -330,6 +399,11 @@ pub fn run() {
 
             let mut builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::External(DISCORD_URL.parse()?))
                 .title("Driftcord")
+                // One bar: Discord's top bar is the title bar (with our own
+                // controls), like the official app. Shadow keeps Windows 11's
+                // rounded corners and border.
+                .decorations(false)
+                .shadow(true)
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(940.0, 500.0)
                 .background_color(

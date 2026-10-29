@@ -19,6 +19,12 @@
     "allow-capture-sources",
     "allow-capture-start",
     "allow-capture-stop",
-    "allow-capture-ack"
+    "allow-capture-ack",
+    "allow-win-drag",
+    "allow-win-resize",
+    "allow-win-minimize",
+    "allow-win-toggle-maximize",
+    "allow-win-is-maximized",
+    "allow-win-close"
   ]
 }
