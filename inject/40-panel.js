@@ -231,6 +231,10 @@ function createPanel() {
         h('h2', {}, 'Memory saver'),
         memoryRows(),
         h('h2', {}, 'Performance'),
+        h('div', { class: 'row' }, h('span', { class: 'label' }, 'Frame rate',
+          h('span', { class: 'desc' }, '30 fps halves the page\'s animation work, for very old PCs')),
+          h('div', { class: 'seg' }, [[60, '60 fps'], [30, '30 fps']].map(([v, label]) =>
+            h('button', { 'aria-pressed': String(store.get('perf.fps') === v), onclick: () => { store.set('perf.fps', v); render(); } }, label)))),
         h('div', {},
           toggleRow('perf.reduceMotion', 'Reduce motion', 'Turns off UI animations and transitions'),
           toggleRow('perf.noBlur', 'Disable blur effects', 'Cheaper to render on older GPUs')),
@@ -288,6 +292,7 @@ function createPanel() {
         toggleRow('updates.auto', 'Check automatically', 'On launch and every few hours'),
         h('h2', {}, 'Performance'),
         fpsCard(),
+        graphicsCard(),
         memoryCard(),
         h('h2', {}, 'Shortcuts'),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Open this panel'), h('kbd', {}, 'Ctrl+Alt+D')),

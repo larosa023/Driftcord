@@ -103,10 +103,10 @@ function measureFps(ms = 1500) {
     const step = (t) => {
       if (!first) first = t;
       last = t; frames++;
-      if (t - first < ms) requestAnimationFrame(step);
+      if (t - first < ms) rawRAF(step);
       else resolve(frames > 1 ? Math.round(((frames - 1) * 1000) / (last - first)) : 0);
     };
-    requestAnimationFrame(step);
+    rawRAF(step);
   });
 }
 window.driftcordFps = () => measureFps().then((fps) => fps + ' fps');
@@ -120,10 +120,87 @@ function fpsCard() {
     const fps = await measureFps();
     value.textContent = fps + ' fps';
     desc.textContent = fps >= 55 ? 'Running at your screen\'s refresh rate.'
-      : fps >= 28 && fps <= 32 ? 'Capped at about half speed. If "Lighter graphics" is on, turn it off and restart.'
+      : fps >= 28 && fps <= 32 ? 'Running at about half speed. See Graphics and Power below for the likely reason.'
       : 'Below your screen\'s refresh rate right now (Discord may be busy).';
+    if (store.get('perf.fps') === 30) desc.textContent = 'Your screen runs at ' + fps + ' fps; Discord\'s animations are limited to 30 (Frame rate setting).';
   };
   setTimeout(run, 300); // let the panel finish opening first
   return h('div', { class: 'row' }, h('span', { class: 'label' }, 'Smoothness', desc), value,
     h('button', { class: 'btn', onclick: run }, 'Measure'));
 }
+
+// ── Graphics info ────────────────────────────────────────────────────────────
+// Which GPU Chromium is drawing with (or whether it fell back to software),
+// and whether the PC is on battery. Only gathered when About is opened.
+
+function graphicsInfo() {
+  let renderer = 'Unknown', software = false;
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl', { failIfMajorPerformanceCaveat: false });
+    if (gl) {
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      renderer = (ext && gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || renderer;
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+    } else {
+      renderer = 'No GPU access'; software = true;
+    }
+  } catch (_) { /* leave as unknown */ }
+  // "ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11 …)" → "NVIDIA GeForce RTX 3070"
+  const m = /ANGLE \([^,]*,\s*([^,(]+?)(?:\s+Direct3D|\s*\(|,|\))/.exec(renderer);
+  const name = (m ? m[1] : renderer).trim();
+  if (/swiftshader|basic render|llvmpipe|software/i.test(renderer)) software = true;
+  return { name, software, raw: renderer };
+}
+
+function graphicsCard() {
+  const box = h('div', {});
+  const g = graphicsInfo();
+  const power = h('b', {}, '…');
+  box.append(
+    h('div', { class: 'row' }, h('span', { class: 'label' }, 'Graphics',
+      h('span', { class: 'desc' }, g.software
+        ? 'Software rendering: Chromium isn\'t using your GPU, which caps smoothness. Update your graphics driver.'
+        : 'Hardware accelerated')), h('b', { title: g.raw }, g.name)),
+    h('div', { class: 'row' }, h('span', { class: 'label' }, 'Power',
+      h('span', { class: 'desc' }, 'Windows may lower frame rates on battery or with Energy Saver on')), power),
+  );
+  if (navigator.getBattery) {
+    navigator.getBattery().then((b) => {
+      power.textContent = b.charging || b.level === 1 && b.chargingTime === 0 ? 'Plugged in' : `On battery (${Math.round(b.level * 100)}%)`;
+    }).catch(() => { power.textContent = 'Unknown'; });
+  } else power.textContent = 'Unknown';
+  return box;
+}
+
+// ── Frame rate setting ───────────────────────────────────────────────────────
+// "60 fps" (default) leaves Chromium at the screen's refresh rate. "30 fps"
+// is for very old PCs: page animations driven by requestAnimationFrame run
+// on every other frame, roughly halving the page's drawing work.
+
+const rawRAF = window.requestAnimationFrame.bind(window);
+const rawCancelRAF = window.cancelAnimationFrame.bind(window);
+const halfRate = { callbacks: new Map(), nextId: 1e9, scheduled: false, odd: false };
+
+function halfRateTick(t) {
+  halfRate.odd = !halfRate.odd;
+  if (halfRate.odd) { rawRAF(halfRateTick); return; } // skip this frame
+  halfRate.scheduled = false;
+  const due = halfRate.callbacks;
+  halfRate.callbacks = new Map();
+  for (const cb of due.values()) {
+    try { cb(t); } catch (e) { setTimeout(() => { throw e; }); }
+  }
+}
+
+window.requestAnimationFrame = function (cb) {
+  if (store.get('perf.fps') !== 30) return rawRAF(cb);
+  const id = halfRate.nextId++;
+  halfRate.callbacks.set(id, cb);
+  if (!halfRate.scheduled) { halfRate.scheduled = true; rawRAF(halfRateTick); }
+  return id;
+};
+window.cancelAnimationFrame = function (id) {
+  if (id >= 1e9) halfRate.callbacks.delete(id);
+  else rawCancelRAF(id);
+};

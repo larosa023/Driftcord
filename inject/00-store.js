@@ -25,6 +25,7 @@ const DEFAULTS = {
   },
   debloat: {},           // filled from DEBLOAT_RULES defaults
   perf: {
+    fps: 60,             // 60 = screen refresh rate; 30 = for very old PCs
     reduceMotion: false,
     noBlur: false,
   },
