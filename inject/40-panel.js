@@ -229,6 +229,7 @@ function createPanel() {
           toggleRow('privacy.silentTyping', 'Silent typing', 'Others won\'t see "… is typing"')),
         h('p', { class: 'hint' }, 'Blocked requests are answered locally, so Discord keeps working normally.'),
         h('h2', {}, 'Performance'),
+        leanRow(),
         h('div', {},
           toggleRow('perf.reduceMotion', 'Reduce motion', 'Turns off UI animations and transitions'),
           toggleRow('perf.noBlur', 'Disable blur effects', 'Cheaper to render on older GPUs')),
@@ -236,18 +237,19 @@ function createPanel() {
     },
 
     Share() {
-      const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Default share mode' },
-        Object.entries(SHARE_MODES).map(([id, m]) => h('button', {
-          'aria-pressed': String(store.get('screenshare.mode') === id), title: m.desc,
-          onclick: () => { store.set('screenshare.mode', id); render(); } }, m.short)));
-      const mode = SHARE_MODES[store.get('screenshare.mode')] || SHARE_MODES.balanced;
+      const segOf = (key, items) => h('div', { class: 'seg', role: 'group' }, items.map(([v, label, title]) =>
+        h('button', { 'aria-pressed': String(store.get(key) === v), title: title || '',
+          onclick: () => { store.set(key, v); render(); } }, label)));
       return [
-        h('h2', {}, 'Optimize for'), seg,
-        h('p', { class: 'hint' }, mode.desc + ' You can switch live from the share bar too.'),
+        h('p', { class: 'hint', style: 'margin-top:14px' }, 'These are the defaults the share picker opens with. You can change them right in the picker too.'),
+        h('h2', {}, 'Quality'), segOf('screenshare.res', Object.entries(SHARE_RES).map(([k, r]) => [k, r.label])),
+        h('h2', {}, 'Frame rate'), segOf('screenshare.fps', SHARE_FPS.map((f) => [f, f + ' fps'])),
+        h('h2', {}, 'Optimize for'), segOf('screenshare.mode', Object.entries(SHARE_MODES).map(([k, m]) => [k, m.label, m.desc])),
+        h('p', { class: 'hint' }, 'Discord may still cap stream quality based on your account. You can switch modes live from the share bar.'),
         h('h2', {}, 'Options'),
         h('div', {},
-          toggleRow('screenshare.audio', 'Share audio', 'Include sound from the screen, window or tab you pick'),
-          toggleRow('screenshare.askEachTime', 'Show the share sheet', 'Pick a mode and audio before choosing what to share'),
+          toggleRow('screenshare.native', 'Driftcord share picker', 'Pick and go live in one screen. Off = Windows\' own picker'),
+          toggleRow('screenshare.audio', 'Share audio', 'App audio for windows; everything except Driftcord for screens'),
           toggleRow('screenshare.pill', 'Live share bar', 'Timer, mode switch and Stop button while you\'re live')),
         h('h2', {}, 'Shortcut'),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Start or stop sharing',
@@ -314,6 +316,30 @@ function createPanel() {
     },
   };
 
+  // Lean mode lives in the native config (it applies before Discord loads).
+  function leanRow() {
+    const box = h('div', {});
+    if (!bridge.available()) return box;
+    const draw = (info, err) => {
+      const input = h('input', { type: 'checkbox', role: 'switch', checked: !!info.lean,
+        onchange: async (e) => {
+          try { draw(await bridge.invoke('set_lean', { enabled: e.target.checked })); }
+          catch (x) { draw(info, errText(x)); }
+        } });
+      box.replaceChildren(...[
+        h('label', { class: 'row' },
+          h('span', { class: 'label' }, 'Lean mode',
+            h('span', { class: 'desc' }, 'Fewer background processes and less memory. Turn off only if something renders wrong.')),
+          h('span', { class: 'switch' }, input)),
+        info.lean !== info.leanActive ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
+          h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null,
+        err ? h('p', { class: 'hint' }, err) : null,
+      ].filter(Boolean));
+    };
+    bridge.invoke('get_info').then((i) => draw(i)).catch(() => {});
+    return box;
+  }
+
   // Mods tab body: needs the native side, so it renders asynchronously.
   async function renderMods(box) {
     if (!bridge.available()) {
@@ -347,12 +373,13 @@ function createPanel() {
           h('div', { class: 's' }, o.sub)))));
 
       const needsRestart = (info.clientMod ?? null) !== (info.loadedMod ?? null);
-      box.replaceChildren(cards,
+      box.replaceChildren(...[cards,
         busy ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, busy)) : null,
         error ? h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Couldn\'t switch: ' + error)) : null,
         !busy && needsRestart ? h('div', { class: 'notice' },
           h('span', { class: 'grow' }, 'Restart Driftcord to apply.'),
-          h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null);
+          h('button', { class: 'btn primary', onclick: () => bridge.invoke('restart_app') }, 'Restart now')) : null,
+      ].filter(Boolean));
     };
     draw();
   }
@@ -373,7 +400,7 @@ function createPanel() {
       h('button', { role: 'tab', 'aria-selected': String(name === current),
         onclick: () => { current = name; main.scrollTop = 0; render(); } }, name)));
     const scroll = main.scrollTop;
-    main.replaceChildren(...tabs[current]());
+    main.replaceChildren(...tabs[current]().flat().filter((x) => x != null && x !== false));
     main.scrollTop = scroll;
   }
 

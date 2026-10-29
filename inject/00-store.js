@@ -4,7 +4,7 @@
 
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.2.2';
+const VERSION = '0.3.0';
 
 const DEFAULTS = {
   theme: 'drift',
@@ -24,10 +24,14 @@ const DEFAULTS = {
     noBlur: false,
   },
   screenshare: {
+    native: true,        // Driftcord's own picker + native capture
+    res: '1080p',        // '720p' | '1080p' | '1440p' | 'source'
+    fps: 30,
     mode: 'balanced',    // 'motion' | 'balanced' | 'detail'
-    audio: true,         // offer system/tab audio
-    askEachTime: true,   // show the share sheet before the picker
+    audio: true,
     pill: true,          // floating "Live" controls while sharing
+    lastSource: null,
+    lastTab: 'screen',
   },
   updates: {
     auto: true,          // check GitHub for new Driftcord versions

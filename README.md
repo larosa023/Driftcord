@@ -8,7 +8,8 @@ Driftcord loads Discord's own web app inside a small native window, so **every f
 - **Debloat.** Toggle off the Nitro and Shop tabs, Quests, gift and Apps buttons, Super Reactions, Activities, upsell banners and more.
 - **Privacy.** Blocks Discord's analytics/"science" pings and crash reporting. Optional silent typing.
 - **Themes.** 15 built-in themes (Drift, Midnight, Frost, Ember, Nord, Dracula, Catppuccin, Gruvbox, Tokyo Night, Rosé Pine, Solarized, Forest, Sakura, Graphite, plus Stock), a custom accent color, any installed font, and a live custom CSS box for community themes.
-- **Modern screen share.** A share sheet (Smooth motion / Balanced / Sharp text, system audio), a floating Live bar with timer, live mode switching and Stop, "share this tab instead" switching, and a `Ctrl+Alt+S` shortcut.
+- **Native screen share.** One screen to pick what to share (live thumbnails of every screen and window), quality, FPS, Smooth/Balanced/Sharp and audio, then Go Live. No browser popups. Capture runs natively (Windows Graphics Capture + WASAPI): window shares send that app's audio, screen shares send everything except Driftcord so your call isn't echoed. Floating Live bar with timer, live mode switching and Stop. `Ctrl+Alt+S` starts/stops.
+- **Lean mode.** WebView2's GPU, network and audio services are folded into one process with a single renderer, and memory is trimmed whenever Driftcord is minimized or in the tray.
 - **Vencord & Equicord.** Turn on either client mod with one click to get their full plugin libraries. Driftcord downloads the official web build and keeps it updated.
 - **Auto-updates.** The installed app checks for new Driftcord releases and updates itself in place.
 - **Desktop niceties.** Tray icon, close-to-tray, single instance, remembers window size and position, external links open in your browser.
@@ -75,6 +76,8 @@ driftcord/
 │   └── mod-shim.js         # Userscript APIs for Vencord/Equicord
 ├── src-tauri/src/
 │   ├── lib.rs              # Window, tray, commands, updater
+│   ├── capture.rs          # Native screen/window capture + audio, shared-memory frames
+│   ├── lean.rs             # Lean mode browser args, memory trimming
 │   ├── mods.rs             # Mod download/cache and cross-origin fetch
 │   └── config.rs           # Native-side settings
 ├── src-tauri/
@@ -97,7 +100,8 @@ The `inject/` files are concatenated at compile time (see `injection_script()` i
 ## Known limitations
 
 - Debloat rules match English `aria-label`s, so a few toggles won't work if Discord's language is set to something else.
-- RAM use is similar to running Discord in a browser tab, because it *is* Discord's web app. The savings are in install size, startup, background activity and clutter.
+- RAM use is roughly that of one Discord browser tab, because it *is* Discord's web app. WebView2 always needs a few processes (browser, renderer, crash reporter); Lean mode keeps it to that minimum. If something renders wrong, use tray → *Restart without Lean mode*.
+- Equicord is about 4× the size of Vencord (370+ plugins vs 180), so pick Vencord if memory matters most.
 - Remote `@import` lines in custom CSS may be blocked by Discord's content security policy. Paste the theme's full CSS instead.
 - Windows is the primary target. macOS and Linux should build but haven't been tested.
 

@@ -857,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "driftcord"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "jpeg-encoder",

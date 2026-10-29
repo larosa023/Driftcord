@@ -301,9 +301,11 @@ pub fn run() {
             let show = MenuItem::with_id(app, "show", "Show Driftcord", true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "Driftcord Settings", true, None::<&str>)?;
             let reload = MenuItem::with_id(app, "reload", "Reload", true, None::<&str>)?;
+            let lean_label = if lean { "Restart without Lean mode" } else { "Restart in Lean mode" };
+            let lean_item = MenuItem::with_id(app, "lean", lean_label, true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &settings, &reload, &sep, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &settings, &reload, &lean_item, &sep, &quit])?;
 
             let mut tray = TrayIconBuilder::with_id("driftcord-tray")
                 .tooltip("Driftcord")
@@ -321,6 +323,13 @@ pub fn run() {
                         if let Some(w) = app.get_webview_window(MAIN) {
                             let _ = w.eval("location.reload()");
                         }
+                    }
+                    // Escape hatch that works even if the page can't render.
+                    "lean" => {
+                        let mut cfg = config::load(app);
+                        cfg.disable_lean = !cfg.disable_lean;
+                        let _ = config::save(app, &cfg);
+                        app.restart();
                     }
                     "quit" => app.exit(0),
                     _ => {}
