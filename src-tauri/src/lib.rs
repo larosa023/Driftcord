@@ -377,7 +377,13 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main(app);
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        // Remember size and position, but not the frame: older versions saved
+        // "has a Windows title bar", which would bring that bar back.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::all() & !tauri_plugin_window_state::StateFlags::DECORATIONS)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(PendingUpdate::default())
@@ -443,7 +449,7 @@ pub fn run() {
             }
 
             let load_handle = handle.clone();
-            builder
+            let main = builder
                 .on_page_load(move |_w, payload| {
                     if payload.event() == tauri::webview::PageLoadEvent::Started {
                         let h = load_handle.clone();
@@ -473,6 +479,8 @@ pub fn run() {
                     _ => PermissionResponse::Default,
                 })
                 .build()?;
+            // Belt and braces: whatever was saved before, the frame follows the setting.
+            let _ = main.set_decorations(cfg.native_titlebar);
 
             // Refresh the enabled mod in the background (the new copy loads next
             // start). Wait until Discord has finished loading, and skip it if the

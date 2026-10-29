@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.6', date: '2026-10-29', title: 'Just one bar',
+    items: [
+      ['fix', 'The Windows title bar no longer comes back after updating from an older version.'],
+      ['new', 'Driftcord\'s logo and name sit at the left of the top bar, with Discord\'s back and forward arrows right after.'],
+    ],
+  },
+  {
     version: '0.4.5', date: '2026-10-29', title: 'Boosted graphics',
     items: [
       ['new', 'Boosted graphics (Clean → Performance) for older PCs: uses your graphics card even when Chromium would fall back to slow software drawing, draws the page on the GPU, and picks the faster card on laptops with two.'],

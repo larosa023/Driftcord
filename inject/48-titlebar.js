@@ -7,6 +7,11 @@
 
 const WIN_CSS = `
 [data-dc-bar] { padding-right: 0 !important; }
+[data-dc-lead] { display: flex; align-items: center; }
+#dc-brand { display: flex; align-items: center; gap: 7px; flex: none; padding: 0 10px 0 12px; pointer-events: none; user-select: none;
+  font: 600 14px/1 var(--font-display, var(--font-primary, 'gg sans', sans-serif)); letter-spacing: .01em;
+  color: var(--header-primary, var(--text-normal, #f2f3f5)); white-space: nowrap; }
+#dc-brand svg { width: 18px; height: 18px; display: block; }
 [data-dc-trail] { align-self: stretch; align-items: center; margin-right: 0 !important; padding-right: 0 !important; }
 #dc-winctl { display: flex; align-self: stretch; align-items: stretch; margin-left: 8px; flex: none; height: 100%; -webkit-app-region: no-drag; }
 #dc-winctl button { all: unset; width: 46px; display: grid; place-items: center; cursor: default;
@@ -40,6 +45,33 @@ const WIN_ICONS = {
   restore: '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V.5h7v7h-2"/></svg>',
   close: '<svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1.1"/></svg>',
 };
+
+// Same mark as the app icon: blue tile, three waves.
+const BRAND_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="dcBrandG" x1="0" y1="0" x2="0" y2="1">' +
+  '<stop offset="0" stop-color="#4b8df8"/><stop offset="1" stop-color="#2160e0"/></linearGradient></defs>' +
+  '<rect width="32" height="32" rx="8" fill="url(#dcBrandG)"/>' +
+  '<g fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round">' +
+  '<path d="M7 11.5c3-2.6 6 2.6 9 0s6 2.6 9 0"/><path d="M7 17c3-2.6 6 2.6 9 0s6 2.6 9 0" opacity=".75"/>' +
+  '<path d="M7 22.5c3-2.6 6 2.6 9 0s6 2.6 9 0" opacity=".5"/></g></svg>';
+
+/** "Driftcord" at the far left of Discord's bar, where the official app has
+ *  its wordmark; Discord's back/forward arrows follow it. Clicks pass through
+ *  so it drags the window like the rest of the bar. */
+function placeBrand(bar) {
+  const back = bar.querySelector('[aria-label="Back"], [aria-label="Forward"]');
+  let lead = bar.firstElementChild;
+  if (back) for (let n = back; n && n !== bar; n = n.parentElement) lead = n.parentElement === bar ? n : lead;
+  if (!lead || lead.id === 'dc-brand') lead = bar;
+  let brand = document.getElementById('dc-brand');
+  if (brand && brand.parentElement === lead && lead.firstElementChild === brand) return;
+  if (!brand) {
+    brand = document.createElement('div');
+    brand.id = 'dc-brand';
+    brand.innerHTML = BRAND_SVG + '<span>Driftcord</span>';
+  }
+  if (lead !== bar) lead.dataset.dcLead = '';
+  lead.prepend(brand);
+}
 
 let winMaximized = false;
 const winButtons = new Set(); // every maximize button, to swap its icon
@@ -115,6 +147,7 @@ function ensureTitlebar() {
   // Fast path: our controls are still in the same, still-attached bar.
   const cur = document.getElementById('dc-winctl');
   if (winBar && winBar.isConnected && cur && cur.parentElement && winBar.contains(cur) && cur.parentElement.lastElementChild === cur) {
+    placeBrand(winBar);
     if (winStrip) winStrip.classList.add('hidden');
     return;
   }
@@ -127,6 +160,7 @@ function ensureTitlebar() {
     const ctl = cur || winControls('div');
     ctl.id = 'dc-winctl';
     trail.append(ctl);
+    placeBrand(bar);
     if (winStrip) winStrip.classList.add('hidden');
     return;
   }
