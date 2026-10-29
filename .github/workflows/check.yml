@@ -1,0 +1,21 @@
+name: Check
+
+# Fast compile check for work-in-progress branches (no release).
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: check
+      - name: Cargo check
+        working-directory: src-tauri
+        run: cargo check --color never

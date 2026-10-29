@@ -9,6 +9,8 @@ use tauri::{AppHandle, Manager};
 pub struct Config {
     /// Which client mod to load: "vencord", "equicord" or none.
     pub client_mod: Option<String>,
+    /// Lean mode (fewer WebView2 processes) is on unless this is set.
+    pub disable_lean: bool,
 }
 
 fn path(app: &AppHandle) -> Option<PathBuf> {

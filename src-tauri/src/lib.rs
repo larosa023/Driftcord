@@ -6,7 +6,9 @@
 //! `../inject/` before Discord loads), plus optional Vencord/Equicord support and
 //! self-updating.
 
+mod capture;
 mod config;
+mod lean;
 mod mods;
 
 use serde::Serialize;
@@ -71,6 +73,7 @@ fn show_main(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        lean::set_memory_low(&w, false);
     }
 }
 
@@ -88,18 +91,68 @@ struct Info {
     /// Mod that is loaded right now.
     loaded_mod: Option<String>,
     mods: Vec<mods::ModStatus>,
+    /// Lean mode setting (applies on next start) and whether it's active now.
+    lean: bool,
+    lean_active: bool,
+    native_capture: bool,
 }
 
 struct LoadedMod(Option<String>);
 
 #[tauri::command]
 fn get_info(app: AppHandle, loaded: State<'_, LoadedMod>) -> Info {
+    info(&app, &config::load(&app), loaded.0.clone())
+}
+
+fn info(app: &AppHandle, cfg: &config::Config, loaded_mod: Option<String>) -> Info {
     Info {
         version: env!("CARGO_PKG_VERSION"),
-        client_mod: config::load(&app).client_mod,
-        loaded_mod: loaded.0.clone(),
-        mods: mods::status(&app),
+        client_mod: cfg.client_mod.clone(),
+        loaded_mod,
+        mods: mods::status(app),
+        lean: !cfg.disable_lean,
+        lean_active: app.state::<LeanActive>().0,
+        native_capture: capture::supported(),
     }
+}
+
+struct LeanActive(bool);
+
+#[tauri::command]
+fn set_lean(app: AppHandle, enabled: bool) -> Result<Info, String> {
+    let mut cfg = config::load(&app);
+    cfg.disable_lean = !enabled;
+    config::save(&app, &cfg)?;
+    let loaded = app.state::<LoadedMod>().0.clone();
+    Ok(info(&app, &cfg, loaded))
+}
+
+// ── Native screen share ──────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn capture_sources(thumbs: bool) -> Result<Vec<capture::Source>, String> {
+    tauri::async_runtime::spawn_blocking(move || capture::list_sources(thumbs))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn capture_start(app: AppHandle, req: capture::StartRequest) -> Result<capture::StartInfo, String> {
+    let window = app.get_webview_window(MAIN).ok_or("no window")?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || capture::start(&handle.state::<capture::CaptureState>(), window, req))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn capture_stop(app: AppHandle) {
+    let _ = tauri::async_runtime::spawn_blocking(move || capture::stop(&app.state::<capture::CaptureState>())).await;
+}
+
+#[tauri::command]
+fn capture_ack(state: State<'_, capture::CaptureState>, id: u32) {
+    capture::ack(&state, id);
 }
 
 /// Choose which mod loads on next start (`None` turns mods off). Downloads it
@@ -117,12 +170,7 @@ async fn set_mod(app: AppHandle, id: Option<String>) -> Result<Info, String> {
     cfg.client_mod = id;
     config::save(&app, &cfg)?;
     let loaded = app.state::<LoadedMod>().0.clone();
-    Ok(Info {
-        version: env!("CARGO_PKG_VERSION"),
-        client_mod: cfg.client_mod,
-        loaded_mod: loaded,
-        mods: mods::status(&app),
-    })
+    Ok(info(&app, &cfg, loaded))
 }
 
 #[tauri::command]
@@ -176,13 +224,19 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(PendingUpdate::default())
+        .manage(capture::CaptureState::default())
         .invoke_handler(tauri::generate_handler![
             get_info,
             set_mod,
             restart_app,
             check_update,
             install_update,
-            mod_fetch
+            mod_fetch,
+            set_lean,
+            capture_sources,
+            capture_start,
+            capture_stop,
+            capture_ack
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -194,12 +248,17 @@ pub fn run() {
             let mod_script = cfg.client_mod.as_deref().and_then(|id| mods::startup_script(&handle, id));
             let loaded_mod = mod_script.as_ref().and(cfg.client_mod.clone());
             app.manage(LoadedMod(loaded_mod.clone()));
+            let lean = !cfg.disable_lean;
+            app.manage(LeanActive(lean));
 
             let mut builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::External(DISCORD_URL.parse()?))
                 .title("Driftcord")
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(940.0, 500.0)
                 .initialization_script(injection_script());
+            if lean {
+                builder = builder.additional_browser_args(lean::LEAN_ARGS);
+            }
             if let Some(script) = mod_script {
                 builder = builder.initialization_script(script);
             }
@@ -284,11 +343,24 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == MAIN {
+            if window.label() != MAIN {
+                return;
+            }
+            let Some(w) = window.app_handle().get_webview_window(MAIN) else { return };
+            match event {
+                // Close hides to the tray, and lets WebView2 trim memory.
+                WindowEvent::CloseRequested { api, .. } => {
                     api.prevent_close();
                     let _ = window.hide();
+                    lean::set_memory_low(&w, true);
                 }
+                WindowEvent::Resized(_) => {
+                    if window.is_minimized().unwrap_or(false) {
+                        lean::set_memory_low(&w, true);
+                    }
+                }
+                WindowEvent::Focused(true) => lean::set_memory_low(&w, false),
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

@@ -5,6 +5,11 @@ const COMMANDS: &[&str] = &[
     "check_update",
     "install_update",
     "mod_fetch",
+    "set_lean",
+    "capture_sources",
+    "capture_start",
+    "capture_stop",
+    "capture_ack",
 ];
 
 fn main() {

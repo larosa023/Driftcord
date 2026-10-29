@@ -26,6 +26,21 @@ base64 = "0.22"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "system-proxy"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
+[target.'cfg(windows)'.dependencies]
+# Native screen share: Windows Graphics Capture, WASAPI process loopback audio,
+# small JPEG thumbnails, and WebView2 shared buffers to hand frames to the page.
+windows-capture = "2.0.1"
+wasapi = "0.26"
+jpeg-encoder = "0.7"
+webview2-com = "0.39"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Dwm",
+    "Win32_Storage_Xps",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [profile.release]
 # Smaller, faster binary.
 codegen-units = 1

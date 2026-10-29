@@ -12,6 +12,11 @@
     "allow-restart-app",
     "allow-check-update",
     "allow-install-update",
-    "allow-mod-fetch"
+    "allow-mod-fetch",
+    "allow-set-lean",
+    "allow-capture-sources",
+    "allow-capture-start",
+    "allow-capture-stop",
+    "allow-capture-ack"
   ]
 }
