@@ -47,9 +47,11 @@ if (window.RTCPeerConnection) {
     const kbps = streamKbps(this);
     if (kbps && desc && typeof desc.sdp === 'string' && (desc.type === 'answer' || desc.type === 'offer')) {
       const sdp = sharpStartSdp(desc.sdp, kbps);
-      if (sdp !== desc.sdp) return realRemote.call(this, { type: desc.type, sdp });
+      if (sdp !== desc.sdp) return realRemote.call(this, { type: desc.type, sdp }).then((r) => { tuneSenders(this); return r; });
     }
-    return realRemote.apply(this, arguments);
+    const r = realRemote.apply(this, arguments);
+    if (r && r.then) r.then(() => tuneSenders(this), () => {});
+    return r;
   };
   const realClose = proto.close;
   proto.close = function () {
@@ -60,6 +62,10 @@ if (window.RTCPeerConnection) {
   };
 }
 
+function tuneSenders(pc) {
+  try { for (const s of pc.getSenders()) tuneShareSender(s); } catch (_) {}
+}
+
 // ── Sharp streams from the first second ──
 // WebRTC starts every video at a few hundred kbps and feels its way up, which
 // is why a stream used to look blurry for its first few seconds. When this
@@ -67,12 +73,57 @@ if (window.RTCPeerConnection) {
 // bitrate that share needs (and not dip far below it). Discord's own maximum
 // for your account still applies. Voice and camera are left alone.
 
+/** Start bitrate for this connection if it's (about to be) sending a share:
+ *  either a share track is attached, or a share is live and the connection
+ *  has an empty video slot Discord will put it in. Camera/voice give 0. */
 function streamKbps(pc) {
-  let kbps = 0;
+  let kbps = 0, emptyVideoSlot = false;
   try {
-    for (const s of pc.getSenders()) if (s.track && shareTracks.has(s.track)) kbps = Math.max(kbps, shareTracks.get(s.track));
+    for (const t of pc.getTransceivers()) {
+      const track = t.sender && t.sender.track;
+      if (track && shareTracks.has(track)) kbps = Math.max(kbps, shareTracks.get(track));
+      else if (!track && /send/.test(t.direction || '') && t.receiver && t.receiver.track && t.receiver.track.kind === 'video') emptyVideoSlot = true;
+    }
   } catch (_) { /* closed */ }
+  if (!kbps && emptyVideoSlot && live) {
+    for (const t of live.stream.getVideoTracks()) kbps = Math.max(kbps, shareTracks.get(t) || 0);
+  }
   return kbps;
+}
+
+// Keep the share at full resolution: when bandwidth is short WebRTC normally
+// shrinks the picture first and grows it back over several seconds, which is
+// the "starts blurry, sharpens while you watch" effect. Sharp/Balanced trade
+// frame rate instead; Smooth keeps frame rate (and may scale).
+function shareDegradation(track) {
+  return track.contentHint === 'motion' ? 'maintain-framerate' : 'maintain-resolution';
+}
+
+function tuneShareSender(sender) {
+  const track = sender && sender.track;
+  if (!track || !shareTracks.has(track) || !sender.getParameters) return;
+  try {
+    const p = sender.getParameters();
+    if (!p.encodings || !p.encodings.length) return; // not negotiated yet
+    const want = shareDegradation(track);
+    if (p.degradationPreference === want) return;
+    p.degradationPreference = want;
+    realSetParameters.call(sender, p).catch(() => {});
+  } catch (_) { /* closed or unsupported */ }
+}
+
+const senderProto = window.RTCRtpSender && RTCRtpSender.prototype;
+const realSetParameters = senderProto && senderProto.setParameters;
+if (realSetParameters) {
+  // Discord adjusts the share's parameters too; keep our preference in them.
+  senderProto.setParameters = function (params) {
+    if (params && this.track && shareTracks.has(this.track)) params.degradationPreference = shareDegradation(this.track);
+    return realSetParameters.apply(this, arguments);
+  };
+  const realReplace = senderProto.replaceTrack;
+  if (realReplace) senderProto.replaceTrack = function () {
+    return realReplace.apply(this, arguments).then((r) => { tuneShareSender(this); return r; });
+  };
 }
 
 const VIDEO_CODECS = /^(VP8|VP9|H264|H265|AV1)$/i;

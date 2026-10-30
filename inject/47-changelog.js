@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.12', date: '2026-10-29', title: 'Sharp streams, take two',
+    items: [
+      ['fix', 'The faster stream start now also applies when Discord attaches your screen after setting up the connection (which it usually does).'],
+      ['fix', 'Streams stay at full resolution from the start instead of starting small and growing. When bandwidth is short, Sharp and Balanced drop frame rate instead; Smooth keeps frame rate.'],
+    ],
+  },
+  {
     version: '0.4.11', date: '2026-10-29', title: 'Links work',
     items: [
       ['fix', 'Links open in your default browser again: plain clicks, middle-clicks, "Visit site" after Discord\'s warning, and "Open in browser" on images and embeds.'],
