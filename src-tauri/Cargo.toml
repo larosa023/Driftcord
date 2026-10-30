@@ -1,6 +1,6 @@
 [package]
 name = "driftcord"
-version = "0.4.14"
+version = "0.4.15"
 description = "A lightweight, debloated, themeable Discord desktop shell"
 edition = "2021"
 rust-version = "1.90"

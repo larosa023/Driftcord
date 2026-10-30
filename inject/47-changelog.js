@@ -4,6 +4,14 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.15', date: '2026-10-30', title: 'Picked 1440p60? Viewers get 1440p60',
+    items: [
+      ['fix', 'Discord\'s own "default Go Live quality" (720p30 without Nitro) now answers with what you picked in Driftcord, so Discord captures, encodes and reports your quality instead of quietly replacing it. Your own "LIVE" badge should match your pick too.'],
+      ['fix', 'Discord sometimes works on a copy of the share; copies are now held to your pick as well.'],
+      ['fix', 'The Windows picker path now asks for your picked quality as well.'],
+    ],
+  },
+  {
     version: '0.4.14', date: '2026-10-30', title: 'Your quality, not Discord\'s',
     items: [
       ['fix', 'The quality and frame rate you pick in Driftcord\'s share picker are what you stream. Discord\'s own profile (720p30 and about 2.5 Mbps without Nitro) no longer pulls it back down a few seconds in.'],

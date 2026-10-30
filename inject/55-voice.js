@@ -111,7 +111,10 @@ function liftShareParams(p, track) {
   if (p.degradationPreference !== want) { p.degradationPreference = want; changed = true; }
   const kbps = shareTracks.get(track) || 0;
   const fps = (track.getSettings && track.getSettings().frameRate) || 0;
-  for (const e of p.encodings || []) {
+  // Only the main layer: a lower simulcast layer (rid "50") is meant to be small.
+  const enc = p.encodings || [];
+  const e = enc.find((x) => !x.rid || x.rid === '100') || enc[0];
+  if (e) {
     if (kbps && e.maxBitrate && e.maxBitrate < shareMaxKbps(kbps) * 1000) { e.maxBitrate = shareMaxKbps(kbps) * 1000; changed = true; }
     if (fps && e.maxFramerate && e.maxFramerate < fps) { e.maxFramerate = fps; changed = true; }
     if (e.scaleResolutionDownBy && e.scaleResolutionDownBy > 1) { e.scaleResolutionDownBy = 1; changed = true; }

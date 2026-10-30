@@ -241,31 +241,15 @@ function createNativeShare(source, opts) {
     },
   };
 
-  // Discord's stream quality menu (and plugins like FakeNitro that unlock
-  // more of it) changes quality through applyConstraints. Pass it on to the
-  // capture, live, from the next frame.
+  // What you picked is the floor (see shareFloor): Discord re-applies its own
+  // profile as the stream connects, which must not shrink it; asking for more
+  // (Discord's menu with Nitro/FakeNitro) is applied to the capture live.
   const res0 = SHARE_RES[opts.res] || SHARE_RES['1080p'];
-  let caps = { w: res0.w, h: res0.h, fps: opts.fps };
-  let applied = {};
-  // What you picked in Driftcord is the floor: Discord re-applies its own
-  // quality profile (720p30 without Nitro) as the stream connects, which must
-  // not shrink it. Requests for more (e.g. Source from Discord's menu with
-  // Nitro or FakeNitro) are applied live.
-  video.applyConstraints = (c) => {
-    c = c || {};
-    applied = { ...c };
-    const want = constrainCaps(caps, c);
-    const next = { w: Math.max(caps.w, want.w), h: Math.max(caps.h, want.h), fps: Math.max(caps.fps, want.fps) };
-    if (next.w !== caps.w || next.h !== caps.h || next.fps !== caps.fps) {
-      caps = next;
-      opts.fps = next.fps;
-      shareTracks.set(video, shareStartKbps(video));
-      bridge.invoke('capture_configure', { maxWidth: next.w, maxHeight: next.h, fps: next.fps }).catch(() => {});
-    }
-    return Promise.resolve();
-  };
-  video.getConstraints = () => ({ ...applied });
-  if (audio) audio.applyConstraints = () => Promise.resolve();
+  registerFloor(video, { w: res0.w, h: res0.h, fps: opts.fps }, (next) => {
+    opts.fps = next.fps;
+    bridge.invoke('capture_configure', { maxWidth: next.w, maxHeight: next.h, fps: next.fps }).catch(() => {});
+  });
+  if (audio) registerFloor(audio, null, null);
 
   // Discord calls stop() when you end the stream; make that stop capture too.
   const realStop = MediaStreamTrack.prototype.stop;
@@ -514,12 +498,146 @@ function shareStartKbps(track) {
   return Math.round(Math.min(10000, Math.max(1500, (w * h * fps * 0.07) / 1000)));
 }
 
+// ── Your quality is the floor ────────────────────────────────────────────────
+// Discord's web client applies its own stream profile (720p30 and ~2.5 Mbps
+// without Nitro) to the share track with applyConstraints, sometimes on a
+// clone of the track. Every share track (and any clone of one) is registered
+// here, and applyConstraints on them can only raise quality, never lower it.
+
+const shareFloor = new WeakMap(); // track → { caps, applied, onRaise } (shared by clones)
+let pickedQuality = null;         // { w, h, fps } of the share in progress
+
+function registerFloor(track, caps, onRaise) {
+  const floor = caps ? { caps, applied: {}, onRaise } : { caps: null };
+  shareFloor.set(track, floor);
+  if (caps) pickedQuality = { ...caps };
+  return floor;
+}
+
+function floorApplyConstraints(track, floor, c) {
+  if (!floor.caps) return Promise.resolve(); // audio: nothing to constrain
+  c = c || {};
+  floor.applied = { ...c };
+  const caps = floor.caps;
+  const want = constrainCaps(caps, c);
+  const next = { w: Math.max(caps.w, want.w), h: Math.max(caps.h, want.h), fps: Math.max(caps.fps, want.fps) };
+  if (next.w !== caps.w || next.h !== caps.h || next.fps !== caps.fps) {
+    floor.caps = next;
+    pickedQuality = { ...next };
+    shareTracks.set(track, shareStartKbps(track));
+    if (floor.onRaise) floor.onRaise(next);
+  }
+  return Promise.resolve();
+}
+
+const nativeApplyConstraints = window.MediaStreamTrack && MediaStreamTrack.prototype.applyConstraints;
+if (window.MediaStreamTrack) {
+  const tp = MediaStreamTrack.prototype;
+  const realApply = tp.applyConstraints, realGetConstraints = tp.getConstraints, realClone = tp.clone;
+  tp.applyConstraints = function (c) {
+    const floor = shareFloor.get(this);
+    return floor ? floorApplyConstraints(this, floor, c) : realApply.apply(this, arguments);
+  };
+  tp.getConstraints = function () {
+    const floor = shareFloor.get(this);
+    return floor ? { ...(floor.applied || {}) } : realGetConstraints.apply(this, arguments);
+  };
+  if (realClone) tp.clone = function () {
+    const copy = realClone.apply(this, arguments);
+    adoptClone(this, copy);
+    return copy;
+  };
+  // MediaStream.clone() clones tracks natively, bypassing the wrapper above.
+  const sp = window.MediaStream && MediaStream.prototype;
+  const realStreamClone = sp && sp.clone;
+  if (realStreamClone) sp.clone = function () {
+    const copy = realStreamClone.apply(this, arguments);
+    try {
+      const from = this.getTracks(), to = copy.getTracks();
+      for (let i = 0; i < from.length && i < to.length; i++) if (from[i].kind === to[i].kind) adoptClone(from[i], to[i]);
+    } catch (_) { /* leave the clone alone */ }
+    return copy;
+  };
+}
+
+/** A clone of a share track is a share track too (same floor, same capture). */
+function adoptClone(orig, copy) {
+  const floor = shareFloor.get(orig);
+  if (floor) shareFloor.set(copy, floor);
+  if (shareTracks.has(orig)) shareTracks.set(copy, shareTracks.get(orig));
+}
+
+/** Discord's view of the share's quality. Web Discord asks its own
+ *  "default Go Live quality" (720p30 without Nitro) for what to capture and
+ *  encode and what to tell the voice server; that is where your pick ends up
+ *  being thrown away. Patch that method on Discord's connection class, found
+ *  through its webpack module cache, so it answers with your pick while a
+ *  Driftcord share is on. Camera and voice are untouched (no share → original
+ *  answer). This is what Vencord's WebScreenShare does, at your quality
+ *  instead of forced 4K/120. */
+let goliveLifted = false;
+function liftGoliveQuality() {
+  if (goliveLifted) return true;
+  const chunks = window.webpackChunkdiscord_app;
+  if (!chunks || typeof chunks.push !== 'function') return false;
+  let wreq = null;
+  try { chunks.push([[Symbol('driftcord')], {}, (r) => { wreq = r; }]); } catch (_) { return false; }
+  if (!wreq || !wreq.c) return false;
+  const seen = new Set();
+  const consider = (v) => {
+    if (!v || (typeof v !== 'function' && typeof v !== 'object') || seen.has(v)) return false;
+    seen.add(v);
+    const proto = typeof v === 'function' ? v.prototype : v;
+    if (!proto || typeof proto !== 'object') return false;
+    const d = Object.getOwnPropertyDescriptor(proto, 'getDefaultGoliveQuality');
+    if (!d || typeof d.value !== 'function' || d.value.__driftcord) return false;
+    const original = d.value;
+    const patched = function () {
+      const q = original.apply(this, arguments);
+      return pickedQuality ? liftedQuality(q, pickedQuality) : q;
+    };
+    patched.__driftcord = true;
+    Object.defineProperty(proto, 'getDefaultGoliveQuality', { ...d, value: patched });
+    return true;
+  };
+  for (const id in wreq.c) {
+    let exp;
+    try { exp = wreq.c[id].exports; } catch (_) { continue; }
+    if (!exp || exp === window || (typeof exp !== 'object' && typeof exp !== 'function')) continue;
+    try {
+      if (consider(exp)) { goliveLifted = true; break; }
+      let found = false;
+      for (const k of Object.keys(exp)) {
+        let v;
+        try { v = exp[k]; } catch (_) { continue; }
+        if (consider(v)) { found = true; break; }
+      }
+      if (found) { goliveLifted = true; break; }
+    } catch (_) { /* some exports throw on access */ }
+  }
+  return goliveLifted;
+}
+
+/** Discord's quality object with the pick written in. */
+function liftedQuality(q, pick) {
+  q = (q && typeof q === 'object') ? q : {};
+  const dims = { width: pick.w, height: pick.h, framerate: pick.fps, pixelCount: pick.w * pick.h };
+  const kbps = Math.round(Math.min(10000, Math.max(1500, (pick.w * pick.h * pick.fps * 0.07) / 1000)));
+  q.capture = Object.assign(q.capture && typeof q.capture === 'object' ? q.capture : {}, dims);
+  if (q.encode && typeof q.encode === 'object') Object.assign(q.encode, dims);
+  q.bitrateTarget = kbps * 1000;
+  q.bitrateMax = Math.min(25000, Math.round(kbps * 1.5)) * 1000;
+  q.bitrateMin = Math.min(Math.round(kbps * 0.3), 1500) * 1000;
+  return q;
+}
+
 /** Remember the current share (no on-screen bar, like Discord itself) so
  *  Ctrl+Alt+S can stop it. */
 function trackLive(stream) {
   live = { stream };
   for (const t of stream.getVideoTracks()) shareTracks.set(t, shareStartKbps(t));
-  const onEnd = () => { if (live && live.stream === stream) live = null; };
+  liftGoliveQuality();
+  const onEnd = () => { if (live && live.stream === stream) { live = null; pickedQuality = null; } };
   for (const t of stream.getTracks()) {
     t.addEventListener('ended', onEnd);
     // Native tracks end through stop(); watch that too.
@@ -549,13 +667,31 @@ if (mediaDevices && mediaDevices.getDisplayMedia) {
     c.selfBrowserSurface ??= 'exclude';
     c.surfaceSwitching ??= 'include';
     c.monitorTypeSurfaces ??= 'include';
+    // Ask for the quality picked in Driftcord's settings, not Discord's profile.
+    const res = SHARE_RES[store.get('screenshare.res')] || SHARE_RES['1080p'];
+    const fps = Number(store.get('screenshare.fps')) || 30;
+    const v = typeof c.video === 'object' ? c.video : {};
+    c.video = { ...v, width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: fps } };
     const stream = await realGetDisplayMedia(c);
     const hint = (SHARE_MODES[store.get('screenshare.mode')] || SHARE_MODES.balanced).hint;
-    for (const t of stream.getVideoTracks()) try { t.contentHint = hint; } catch (_) {}
+    for (const t of stream.getVideoTracks()) {
+      try { t.contentHint = hint; } catch (_) {}
+      // The floor for a system track is what the screen really gives.
+      const st = (t.getSettings && t.getSettings()) || {};
+      registerFloor(t, { w: Math.min(res.w, st.width || res.w), h: Math.min(res.h, st.height || res.h), fps: Math.min(fps, st.frameRate || fps) },
+        (next) => { realApplyFor(t, next); });
+    }
     return stream;
   }
 
+  /** Raise a real (system) track's constraints when Discord asks for more. */
+  const realApplyFor = (t, next) => {
+    if (!nativeApplyConstraints) return;
+    nativeApplyConstraints.call(t, { width: { ideal: next.w }, height: { ideal: next.h }, frameRate: { ideal: next.fps } }).catch(() => {});
+  };
+
   mediaDevices.getDisplayMedia = async function (constraints = {}) {
+    liftGoliveQuality();
     let stream;
     if (await canShareNatively()) {
       const pick = await sharePicker();
