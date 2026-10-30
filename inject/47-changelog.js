@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.22', date: '2026-10-30', title: 'New look',
+    items: [
+      ['new', 'A new Driftcord icon: a comet with speed trails. It replaces the old waves on the taskbar, tray, title bar, top-bar button and settings.'],
+    ],
+  },
+  {
     version: '0.4.21', date: '2026-10-30', title: 'Stream diagnostics',
     items: [
       ['new', 'About → Stream now shows what your encoder is really sending (resolution, fps, bitrate) and what is holding it back. This pins down whether a stream is limited on your PC, by your connection, or by Discord.'],

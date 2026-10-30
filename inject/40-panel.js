@@ -132,7 +132,7 @@ kbd { background: var(--d-card); border: 1px solid var(--d-line); border-bottom-
 @media (prefers-reduced-motion: reduce) { .drawer, .scrim { transition: none; } .toast { animation: none; } }
 `;
 
-const LOGO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M3 8c3-3 6 3 9 0s6 3 9 0M3 13c3-3 6 3 9 0s6 3 9 0M3 18c3-3 6 3 9 0s6 3 9 0"/></svg>';
+const LOGO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-linecap="round" color="#fff"><path d="M5 7.5h6M3 12h9M6 16.5h7" stroke-width="2.2"/><circle cx="16.5" cy="12" r="4.6" fill="currentColor" stroke="none"/></svg>';
 
 function createPanel() {
   const host = h('div', { id: 'driftcord-root' });

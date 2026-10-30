@@ -47,12 +47,11 @@ const WIN_ICONS = {
 };
 
 // Same mark as the app icon: blue tile, three waves.
-const BRAND_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="dcBrandG" x1="0" y1="0" x2="0" y2="1">' +
-  '<stop offset="0" stop-color="#4b8df8"/><stop offset="1" stop-color="#2160e0"/></linearGradient></defs>' +
-  '<rect width="32" height="32" rx="8" fill="url(#dcBrandG)"/>' +
-  '<g fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round">' +
-  '<path d="M7 11.5c3-2.6 6 2.6 9 0s6 2.6 9 0"/><path d="M7 17c3-2.6 6 2.6 9 0s6 2.6 9 0" opacity=".75"/>' +
-  '<path d="M7 22.5c3-2.6 6 2.6 9 0s6 2.6 9 0" opacity=".5"/></g></svg>';
+const BRAND_SVG = '<svg viewBox="0 0 256 256" aria-hidden="true"><defs><linearGradient id="dcBrandG" gradientUnits="userSpaceOnUse" x1="30" y1="0" x2="220" y2="0">' +
+  '<stop offset="0" stop-color="#ff5fae"/><stop offset="1" stop-color="#7a4dff"/></linearGradient></defs>' +
+  '<rect width="256" height="256" rx="58" fill="#0b0b10"/>' +
+  '<g stroke-linecap="round" fill="none" stroke="url(#dcBrandG)" stroke-width="15"><path d="M44 160H112" opacity=".4"/><path d="M32 126H134" opacity=".65"/><path d="M56 92H150" opacity=".9"/></g>' +
+  '<circle cx="176" cy="126" r="46" fill="url(#dcBrandG)"/></svg>';
 
 /** "Driftcord" at the far left of Discord's bar, where the official app has
  *  its wordmark; Discord's back/forward arrows follow it. Clicks pass through

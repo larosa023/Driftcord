@@ -132,7 +132,7 @@ function findTopbarAnchor() {
 }
 
 const WAVE_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">' +
-  '<path d="M3 8c3-3 6 3 9 0s6 3 9 0M3 13c3-3 6 3 9 0s6 3 9 0M3 18c3-3 6 3 9 0s6 3 9 0"/></svg>';
+  '<path d="M5 7.5h6M3 12h9M6 16.5h7" stroke-width="2.2"/><circle cx="16.5" cy="12" r="4.6" fill="currentColor" stroke="none"/></svg>';
 const NEWS_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M12 3l1.9 4.6L19 9.5l-4.1 3.1L16.2 18 12 15.3 7.8 18l1.3-5.4L5 9.5l5.1-1.9z"/></svg>';
 
