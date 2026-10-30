@@ -35,6 +35,7 @@ fn injection_script() -> String {
     let parts = [
         include_str!("../../inject/00-store.js"),
         include_str!("../../inject/05-bridge.js"),
+        include_str!("../../inject/07-links.js"),
         include_str!("../../inject/10-privacy.js"),
         include_str!("../../inject/20-debloat.js"),
         include_str!("../../inject/25-memory.js"),
@@ -206,6 +207,16 @@ fn set_memory(
     config::save(&app, &cfg)?;
     let loaded = app.state::<LoadedMod>().0.clone();
     Ok(info(&app, &cfg, loaded))
+}
+
+/// Open a link in the default browser (http, https and mailto only).
+#[tauri::command]
+fn open_link(app: AppHandle, url: String) -> Result<(), String> {
+    let url = Url::parse(&url).map_err(|e| e.to_string())?;
+    if !matches!(url.scheme(), "http" | "https" | "mailto") {
+        return Err("unsupported link".into());
+    }
+    app.opener().open_url(url.as_str(), None::<&str>).map_err(|e| e.to_string())
 }
 
 /// The page is in (or left) a voice/video call.
@@ -406,6 +417,7 @@ pub fn run() {
             set_memory,
             set_background,
             set_in_call,
+            open_link,
             capture_sources,
             capture_start,
             capture_stop,

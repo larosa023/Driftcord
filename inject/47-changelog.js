@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.11', date: '2026-10-29', title: 'Links work',
+    items: [
+      ['fix', 'Links open in your default browser again: plain clicks, middle-clicks, "Visit site" after Discord\'s warning, and "Open in browser" on images and embeds.'],
+    ],
+  },
+  {
     version: '0.4.10', date: '2026-10-29', title: 'Pinker Noir',
     items: [
       ['improved', 'Pink Noir is now pure black everywhere: server list, channels, chat, menus and popouts. Only the message box keeps a faint lift so you can see it.'],

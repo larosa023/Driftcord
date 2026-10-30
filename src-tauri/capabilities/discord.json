@@ -17,6 +17,7 @@
     "allow-set-memory",
     "allow-set-background",
     "allow-set-in-call",
+    "allow-open-link",
     "allow-capture-sources",
     "allow-capture-start",
     "allow-capture-stop",
