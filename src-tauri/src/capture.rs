@@ -71,6 +71,7 @@ mod other {
     }
     pub fn stop(_: &CaptureState) {}
     pub fn ack(_: &CaptureState, _: &[(u32, u64)]) {}
+    pub fn configure(_: &CaptureState, _: u32, _: u32, _: u32) {}
     pub fn remember_listed(_: &CaptureState, _: &[Source]) {}
 }
 #[cfg(not(windows))]
@@ -84,7 +85,7 @@ mod win {
         cell::RefCell,
         collections::{HashMap, HashSet, VecDeque},
         sync::{
-            atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+            atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering},
             mpsc, Arc, Mutex,
         },
         time::{Duration, Instant},
@@ -384,12 +385,18 @@ mod win {
         started: Instant,
         video: Ring,
         audio: Ring,
-        max_w: u32,
-        max_h: u32,
-        interval: Duration,
+        /// Output size cap and frame interval. Atomics so Discord's quality
+        /// menu can change them while you're live (see `configure`).
+        max_w: AtomicU32,
+        max_h: AtomicU32,
+        interval_ns: AtomicU64,
     }
 
     impl Shared {
+        fn interval(&self) -> Duration {
+            Duration::from_nanos(self.interval_ns.load(Ordering::Relaxed))
+        }
+
         fn now_ms(&self) -> u64 {
             self.started.elapsed().as_millis() as u64
         }
@@ -578,7 +585,8 @@ mod win {
             // 60/120/240 Hz screens give perfectly even frames and 144/165 Hz
             // ones still hit the target rate.
             let now = Instant::now();
-            let tolerance = sh.interval / 3;
+            let interval = sh.interval();
+            let tolerance = interval / 3;
             if let Some(due) = self.next_due {
                 if now + tolerance < due {
                     return Ok(());
@@ -590,8 +598,8 @@ mod win {
                 sh.release_now(slot.id);
             } else {
                 self.next_due = Some(match self.next_due {
-                    Some(due) if now < due + sh.interval => due + sh.interval,
-                    _ => now + sh.interval,
+                    Some(due) if now < due + interval => due + interval,
+                    _ => now + interval,
                 });
             }
             result
@@ -604,7 +612,8 @@ mod win {
                 sh.release_now(slot.id);
                 return Ok(());
             }
-            let ratio = (w as f64 / sh.max_w.max(1) as f64).max(h as f64 / sh.max_h.max(1) as f64);
+            let (max_w, max_h) = (sh.max_w.load(Ordering::Relaxed).max(1), sh.max_h.load(Ordering::Relaxed).max(1));
+            let ratio = (w as f64 / max_w as f64).max(h as f64 / max_h as f64);
             let (ow, oh) = if ratio > 1.02 {
                 (((w as f64 / ratio) as usize).max(2) & !1, ((h as f64 / ratio) as usize).max(2) & !1)
             } else {
@@ -821,9 +830,9 @@ mod win {
             started: Instant::now(),
             video: Ring::new(0, VIDEO_SLOTS),
             audio: Ring::new(AUDIO_BASE, AUDIO_SLOTS),
-            max_w: req.max_width.clamp(320, 7680),
-            max_h: req.max_height.clamp(180, 4320),
-            interval: Duration::from_secs_f64(1.0 / fps as f64),
+            max_w: AtomicU32::new(req.max_width.clamp(320, 7680)),
+            max_h: AtomicU32::new(req.max_height.clamp(180, 4320)),
+            interval_ns: AtomicU64::new(interval_ns(fps)),
         });
 
         let border = if GraphicsCaptureApi::is_border_settings_supported().unwrap_or(false) {
@@ -832,7 +841,10 @@ mod win {
             DrawBorderSettings::Default
         };
         let interval = if GraphicsCaptureApi::is_minimum_update_interval_supported().unwrap_or(false) {
-            MinimumUpdateIntervalSettings::Custom(shared.interval)
+            // At least 60 updates a second from Windows, so switching to a
+            // higher frame rate mid-stream works without restarting; extra
+            // frames are skipped before any copying.
+            MinimumUpdateIntervalSettings::Custom(Duration::from_nanos(interval_ns(fps.max(60))))
         } else {
             MinimumUpdateIntervalSettings::Default
         };
@@ -924,6 +936,20 @@ mod win {
                 })
             })
         });
+    }
+
+    fn interval_ns(fps: u32) -> u64 {
+        1_000_000_000 / fps.clamp(5, 120) as u64
+    }
+
+    /// Change size and frame rate of the share in progress (Discord's stream
+    /// quality menu). Takes effect from the next frame.
+    pub fn configure(state: &CaptureState, max_width: u32, max_height: u32, fps: u32) {
+        if let Some(s) = lock(&state.session).as_ref() {
+            s.shared.max_w.store(max_width.clamp(320, 7680), Ordering::Relaxed);
+            s.shared.max_h.store(max_height.clamp(180, 4320), Ordering::Relaxed);
+            s.shared.interval_ns.store(interval_ns(fps), Ordering::Relaxed);
+        }
     }
 
     pub fn ack(state: &CaptureState, acks: &[(u32, u64)]) {

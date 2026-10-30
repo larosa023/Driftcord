@@ -14,6 +14,7 @@ const COMMANDS: &[&str] = &[
     "capture_start",
     "capture_stop",
     "capture_ack",
+    "capture_configure",
     "win_drag",
     "win_resize",
     "win_minimize",

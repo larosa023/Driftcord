@@ -322,6 +322,12 @@ async fn capture_stop(app: AppHandle) {
     let _ = tauri::async_runtime::spawn_blocking(move || capture::stop(&app.state::<capture::CaptureState>())).await;
 }
 
+/// Discord changed the stream quality while live.
+#[tauri::command]
+fn capture_configure(state: State<'_, capture::CaptureState>, max_width: u32, max_height: u32, fps: u32) {
+    capture::configure(&state, max_width, max_height, fps);
+}
+
 /// Batched acks from the page: `[[slotId, seq], …]`. Async so it never runs
 /// on the UI thread, which is busy posting frames.
 #[tauri::command]
@@ -422,6 +428,7 @@ pub fn run() {
             capture_start,
             capture_stop,
             capture_ack,
+            capture_configure,
             win_drag,
             win_resize,
             win_minimize,

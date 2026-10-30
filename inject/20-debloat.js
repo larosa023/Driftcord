@@ -34,7 +34,10 @@ const DEBLOAT_RULES = [
 
   // Upsells
   { id: 'upsells', group: 'Upsells', label: 'Nitro upsell banners & nags', on: true,
-    css: '[class*="upsellBanner"], [class*="premiumUpsell"], [class*="nitroUpsell"], [class*="premiumTrial"]' },
+    // Never hide a box with choices in it (e.g. stream quality options that
+    // FakeNitro unlocks sit inside an upsell wrapper).
+    css: ['upsellBanner', 'premiumUpsell', 'nitroUpsell', 'premiumTrial']
+      .map((c) => `[class*="${c}"]:not(:has([role="radio"], [role="radiogroup"], [role="option"], [role="listbox"], input))`).join(', ') },
   { id: 'activities', group: 'Upsells', label: '"Start an Activity" in voice', on: true,
     css: '[aria-label="Start an Activity"], [aria-label="Choose an Activity"]' },
   { id: 'boostBar', group: 'Upsells', label: 'Server boost goal bar', on: false,

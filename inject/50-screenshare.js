@@ -162,6 +162,26 @@ window.__driftcordCaptureEnded = (reason) => {
 };
 window.__driftcordCaptureWarning = (message) => toast('Screen share', { sub: message, duration: 7000 });
 
+/** New capture limits from a constraints object ({width, height, frameRate},
+ *  each a number or {exact|max|ideal}). Missing values keep the current one;
+ *  if only one side is given the other is left open, so aspect is kept. */
+function constrainCaps(caps, c) {
+  const val = (v) => {
+    const n = typeof v === 'number' ? v : v && typeof v === 'object' ? (v.exact ?? v.max ?? v.ideal) : undefined;
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
+  };
+  let w = val(c.width), h = val(c.height);
+  const fps = val(c.frameRate);
+  if (w === undefined && h === undefined) { w = caps.w; h = caps.h; }
+  else if (w === undefined) w = 7680;
+  else if (h === undefined) h = 4320;
+  return {
+    w: Math.min(Math.max(w, 320), 7680),
+    h: Math.min(Math.max(h, 180), 4320),
+    fps: fps === undefined ? caps.fps : Math.min(Math.max(fps, 5), 60),
+  };
+}
+
 /** Builds the MediaStream Discord receives, fed by native frames. */
 function createNativeShare(source, opts) {
   const hasGenerator = typeof window.MediaStreamTrackGenerator === 'function' && typeof window.VideoFrame === 'function';
@@ -221,10 +241,31 @@ function createNativeShare(source, opts) {
     },
   };
 
-  // Quality changes come from Driftcord's picker. Constraint requests from
-  // Discord or plugins are accepted without changing the capture (instead of
-  // failing on a generator track).
-  for (const t of [video, audio]) if (t) t.applyConstraints = () => Promise.resolve();
+  // Discord's stream quality menu (and plugins like FakeNitro that unlock
+  // more of it) changes quality through applyConstraints. Pass it on to the
+  // capture, live, from the next frame.
+  const res0 = SHARE_RES[opts.res] || SHARE_RES['1080p'];
+  let caps = { w: res0.w, h: res0.h, fps: opts.fps };
+  let applied = {};
+  const startedAt = performance.now();
+  video.applyConstraints = (c) => {
+    c = c || {};
+    // Discord applies its default quality as a stream starts; what you just
+    // picked in Driftcord's picker wins. Changes after that (Discord's stream
+    // quality menu) apply right away.
+    if (performance.now() - startedAt < 2000) { applied = { ...c }; return Promise.resolve(); }
+    const next = constrainCaps(caps, c);
+    applied = { ...c };
+    if (next.w !== caps.w || next.h !== caps.h || next.fps !== caps.fps) {
+      caps = next;
+      opts.fps = next.fps;
+      shareTracks.set(video, shareStartKbps(video));
+      bridge.invoke('capture_configure', { maxWidth: next.w, maxHeight: next.h, fps: next.fps }).catch(() => {});
+    }
+    return Promise.resolve();
+  };
+  video.getConstraints = () => ({ ...applied });
+  if (audio) audio.applyConstraints = () => Promise.resolve();
 
   // Discord calls stop() when you end the stream; make that stop capture too.
   const realStop = MediaStreamTrack.prototype.stop;

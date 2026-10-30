@@ -22,6 +22,7 @@
     "allow-capture-start",
     "allow-capture-stop",
     "allow-capture-ack",
+    "allow-capture-configure",
     "allow-win-drag",
     "allow-win-resize",
     "allow-win-minimize",

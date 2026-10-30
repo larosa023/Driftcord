@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.13', date: '2026-10-30', title: 'Stream quality you can change',
+    items: [
+      ['fix', 'Changing stream quality from Discord\'s menu while you\'re live now actually changes it (resolution and frame rate), from the next frame, without restarting the stream.'],
+      ['fix', 'Works with FakeNitro\'s unlocked qualities. The "Nitro upsells" cleanup never hides a box that has options in it.'],
+    ],
+  },
+  {
     version: '0.4.12', date: '2026-10-29', title: 'Sharp streams, take two',
     items: [
       ['fix', 'The faster stream start now also applies when Discord attaches your screen after setting up the connection (which it usually does).'],
