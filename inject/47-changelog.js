@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.23', date: '2026-10-30', title: 'Honest quality badge',
+    items: [
+      ['fixed', 'The stream quality pill (e.g. "720p 30FPS") now shows what the video really is: its decoded height and measured frame rate, instead of Discord\'s stored label, which could say less than the stream actually was.'],
+    ],
+  },
+  {
     version: '0.4.22', date: '2026-10-30', title: 'New look',
     items: [
       ['new', 'A new Driftcord icon: a comet with speed trails. It replaces the old waves on the taskbar, tray, title bar, top-bar button and settings.'],

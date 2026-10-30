@@ -25,6 +25,7 @@ function onReady() {
   startTopbar();
   startTitlebar();
   badge.start();
+  labels.start();
   reportBackground(((THEMES[store.get('theme')] || {}).palette || {}).base1 || '#2b2d31');
   announceUpdate();
   announceRetiredShareMods();
