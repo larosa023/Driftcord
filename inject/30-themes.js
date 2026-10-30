@@ -29,10 +29,10 @@ const THEMES = {
   },
   amoledPink: {
     name: 'Pink Noir',
-    note: 'True black with hot pink accents',
+    note: 'Pure black with hot pink accents',
     palette: {
-      base0: '#000000', base1: '#050304', base2: '#080507', surface: '#120b10',
-      input: '#140c12', text: '#f2e6ee', muted: '#9c8593', header: '#ffffff',
+      base0: '#000000', base1: '#000000', base2: '#000000', surface: '#000000',
+      input: '#0a0a0a', text: '#f2e6ee', muted: '#9c8593', header: '#ffffff',
       accent: '#ff3d9a',
     },
   },
