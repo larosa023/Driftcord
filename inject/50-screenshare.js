@@ -109,29 +109,7 @@ const SHARE_CSS = `
 .picker .go { padding: 9px 18px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
 .picker .go i { width: 8px; height: 8px; border-radius: 50%; background: #fff; }
 .picker .err { color: #ff8a8a; font-size: 12.5px; width: 100%; }
-
-.live { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 2147483646;
-  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-radius: 99px;
-  background: var(--d-bg); color: var(--d-text);
-  border: 1px solid var(--d-line); box-shadow: 0 10px 30px rgb(0 0 0 / .4);
-  font: 13px/1 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; animation: liveIn .25s cubic-bezier(.2,.8,.2,1);
-  user-select: none; }
-@keyframes liveIn { from { opacity: 0; transform: translate(-50%, -8px); } }
-.live .rec { display: flex; align-items: center; gap: 7px; font-weight: 700; letter-spacing: .04em; font-size: 11.5px; }
-.live .rec i { width: 8px; height: 8px; border-radius: 50%; background: #f04848; will-change: opacity;
-  animation: blink 2s ease-in-out infinite; }
-@keyframes blink { 50% { opacity: .35; } }
-.live .what { color: var(--d-muted); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
-.live .time { font-variant-numeric: tabular-nums; font-weight: 600; }
-.live .seg { padding: 2px; border-radius: 99px; }
-.live .seg button { padding: 5px 10px; border-radius: 99px; font-size: 12px; }
-.live .stop { background: #e5484d; color: #fff; border: 0; border-radius: 99px; padding: 7px 14px; font: inherit;
-  font-weight: 650; cursor: pointer; }
-.live .stop:hover { background: #d13a3f; }
-.live .min { background: none; border: 0; color: var(--d-muted); width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 14px; }
-.live .min:hover { background: var(--d-hover); color: var(--d-text); }
-.live.small .what, .live.small .seg, .live.small .time { display: none; }
-@media (prefers-reduced-motion: reduce) { .share-scrim, .picker, .live, .live .rec i, .skel .shot { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .share-scrim, .picker, .skel .shot { animation: none; } }
 .picker:focus { outline: none; }
 `;
 
@@ -473,7 +451,7 @@ function sharePicker() {
 
 // ── Live bar ─────────────────────────────────────────────────────────────────
 
-let live = null; // { stream, bar, timer }
+let live = null; // { stream }: the share in progress
 
 function stopStream(stream) {
   if (native && native.stream === stream) { native.end(true); return; }
@@ -484,65 +462,17 @@ function stopStream(stream) {
   }
 }
 
-function describeShare(stream) {
-  if (native && native.stream === stream) {
-    const s = native.source;
-    return (s.kind === 'screen' ? s.name : s.detail || s.name) + (native.audio ? ' · with audio' : '');
-  }
-  const track = stream.getVideoTracks()[0];
-  const surface = (track && track.getSettings && track.getSettings().displaySurface) || '';
-  return ({ monitor: 'Entire screen', window: 'A window', browser: 'A tab' }[surface] || 'Your screen') +
-    (stream.getAudioTracks().length ? ' · with audio' : '');
-}
-
-function showLiveBar(stream) {
-  const layer = shareLayer();
-  if (!layer) return;
-  hideLiveBar();
-
-  const started = Date.now();
-  const time = h('span', { class: 'time' }, '0:00');
-  const what = h('span', { class: 'what' }, describeShare(stream));
-
-  const seg = h('div', { class: 'seg' });
-  const drawSeg = () => seg.replaceChildren(...Object.entries(SHARE_MODES).map(([id, m]) =>
-    h('button', { 'aria-pressed': String(store.get('screenshare.mode') === id), title: m.desc,
-      onclick: () => {
-        store.set('screenshare.mode', id);
-        for (const t of stream.getVideoTracks()) try { t.contentHint = m.hint; } catch (_) {}
-        drawSeg();
-      } }, m.short)));
-  drawSeg();
-
-  const bar = h('div', { class: 'live', role: 'status', 'aria-label': 'You are sharing your screen' },
-    h('span', { class: 'rec' }, h('i'), 'LIVE'), time, what, seg,
-    h('button', { class: 'min', title: 'Collapse', onclick: (e) => {
-      bar.classList.toggle('small'); e.currentTarget.textContent = bar.classList.contains('small') ? '⌄' : '⌃';
-    } }, '⌃'),
-    h('button', { class: 'stop', title: 'Stop sharing (Ctrl+Alt+S)', onclick: () => stopStream(stream) }, 'Stop'));
-  layer.append(bar);
-
-  const timer = setInterval(() => {
-    const s = Math.floor((Date.now() - started) / 1000);
-    const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = String(s % 60).padStart(2, '0');
-    time.textContent = hh ? `${hh}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
-  }, 1000);
-
-  live = { stream, bar, timer };
-  const onEnd = () => { if (live && live.stream === stream) hideLiveBar(); };
+/** Remember the current share (no on-screen bar, like Discord itself) so
+ *  Ctrl+Alt+S can stop it. */
+function trackLive(stream) {
+  live = { stream };
+  const onEnd = () => { if (live && live.stream === stream) live = null; };
   for (const t of stream.getTracks()) {
     t.addEventListener('ended', onEnd);
     // Native tracks end through stop(); watch that too.
     const prev = t.stop;
     t.stop = function () { prev.call(this); onEnd(); };
   }
-}
-
-function hideLiveBar() {
-  if (!live) return;
-  clearInterval(live.timer);
-  live.bar.remove();
-  live = null;
 }
 
 // ── getDisplayMedia ──────────────────────────────────────────────────────────
@@ -588,7 +518,7 @@ if (mediaDevices && mediaDevices.getDisplayMedia) {
     } else {
       stream = await systemShare(constraints);
     }
-    if (store.get('screenshare.pill')) showLiveBar(stream);
+    trackLive(stream);
     return stream;
   };
 }

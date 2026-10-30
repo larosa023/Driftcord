@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.8', date: '2026-10-29', title: 'Cleaner streaming',
+    items: [
+      ['improved', 'The floating "LIVE" bar is gone while you stream, just like Discord. Stop from Discord\'s own controls, or press Ctrl+Alt+S.'],
+    ],
+  },
+  {
     version: '0.4.7', date: '2026-10-29', title: 'Snappier speaking ring',
     items: [
       ['fix', 'The green speaking ring in voice calls switches on and off instantly instead of fading in late.'],
