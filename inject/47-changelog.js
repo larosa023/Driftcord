@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.7', date: '2026-10-29', title: 'Snappier speaking ring',
+    items: [
+      ['fix', 'The green speaking ring in voice calls switches on and off instantly instead of fading in late.'],
+      ['fix', 'While you\'re in a call, Driftcord stays at full speed even when you\'re in another app (the background memory saver waits until the call ends).'],
+    ],
+  },
+  {
     version: '0.4.6', date: '2026-10-29', title: 'Just one bar',
     items: [
       ['fix', 'The Windows title bar no longer comes back after updating from an older version.'],

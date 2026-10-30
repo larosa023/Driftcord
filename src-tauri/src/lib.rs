@@ -44,6 +44,7 @@ fn injection_script() -> String {
         include_str!("../../inject/47-changelog.js"),
         include_str!("../../inject/48-titlebar.js"),
         include_str!("../../inject/50-screenshare.js"),
+        include_str!("../../inject/55-voice.js"),
         include_str!("../../inject/60-updates.js"),
         include_str!("../../inject/65-monitor.js"),
         include_str!("../../inject/99-boot.js"),
@@ -205,6 +206,12 @@ fn set_memory(
     config::save(&app, &cfg)?;
     let loaded = app.state::<LoadedMod>().0.clone();
     Ok(info(&app, &cfg, loaded))
+}
+
+/// The page is in (or left) a voice/video call.
+#[tauri::command]
+fn set_in_call(app: AppHandle, on: bool) {
+    lean::set_in_call(&app, on);
 }
 
 #[tauri::command]
@@ -398,6 +405,7 @@ pub fn run() {
             set_lean,
             set_memory,
             set_background,
+            set_in_call,
             capture_sources,
             capture_start,
             capture_stop,

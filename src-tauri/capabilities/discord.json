@@ -16,6 +16,7 @@
     "allow-set-lean",
     "allow-set-memory",
     "allow-set-background",
+    "allow-set-in-call",
     "allow-capture-sources",
     "allow-capture-start",
     "allow-capture-stop",

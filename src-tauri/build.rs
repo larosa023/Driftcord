@@ -8,6 +8,7 @@ const COMMANDS: &[&str] = &[
     "set_lean",
     "set_memory",
     "set_background",
+    "set_in_call",
     "capture_sources",
     "capture_start",
     "capture_stop",

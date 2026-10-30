@@ -17,7 +17,7 @@
 //!   is focused again. Scripts keep running, so messages, calls and
 //!   notifications are unaffected.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, WebviewWindow};
 
@@ -93,8 +93,33 @@ pub fn on_hidden(app: &AppHandle) {
     schedule(app, cfg.tray_trim, cfg.tray_trim_minutes);
 }
 
+/// In a voice/video call (reported by the page). The light trim is skipped
+/// while it lasts: it can slow a page that's still on screen, which shows up
+/// as a laggy speaking ring.
+static IN_CALL: AtomicBool = AtomicBool::new(false);
+
+pub fn set_in_call(app: &AppHandle, on: bool) {
+    if IN_CALL.swap(on, Ordering::SeqCst) == on {
+        return;
+    }
+    let Some(w) = app.get_webview_window(crate::MAIN) else { return };
+    let hidden = !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false);
+    if on {
+        if !hidden {
+            // Cancel a pending light trim and undo one already applied.
+            GENERATION.fetch_add(1, Ordering::SeqCst);
+            trim(&w, Trim::None);
+        }
+    } else if !hidden && !w.is_focused().unwrap_or(true) {
+        on_unfocused(app); // call ended while in another app: resume as usual
+    }
+}
+
 /// Window is open but you're in another app: light trim after a while.
 pub fn on_unfocused(app: &AppHandle) {
+    if IN_CALL.load(Ordering::SeqCst) {
+        return;
+    }
     // Hiding to the tray also unfocuses; don't let that replace the full trim.
     if let Some(w) = app.get_webview_window(crate::MAIN) {
         if !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false) {
@@ -153,7 +178,7 @@ fn run_trim(app: &AppHandle) {
     if hidden {
         let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
         trim(&w, Trim::Full);
-    } else if !focused {
+    } else if !focused && !IN_CALL.load(Ordering::SeqCst) {
         // Still on screen: keep rendering, just release caches.
         let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
         trim(&w, Trim::Light);
