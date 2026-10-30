@@ -81,12 +81,15 @@ function watchClick(e) {
   const t0 = performance.now(), dialogsBefore = dialogCount();
   // After the whole click has been handled (Discord's own code, mods): did
   // anything open the link, or ask first?
-  setTimeout(() => {
+  const check = () => {
     if (lastOpened.t >= t0) return;                // an open already went through
     if (dialogCount() > dialogsBefore) return;     // Discord is asking first
     linkStats.rescued++;
     openExternal(u.href);                          // the app skips it if the browser route also fired
-  }, 450);
+  };
+  // Nobody took the click over → open now. Discord did take it over → give it
+  // a moment to open the link or show its warning first.
+  setTimeout(() => { if (e.defaultPrevented) setTimeout(check, 180); else check(); }, 0);
 }
 // Capture phase on window: first in line, so nothing can swallow the click.
 window.addEventListener('click', watchClick, true);

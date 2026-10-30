@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.18', date: '2026-10-30', title: 'Faster links',
+    items: [
+      ['improved', 'Links open right away: instantly when Discord ignores the click, and after about 0.2 s (was 0.45 s) when Discord took it over and did nothing.'],
+    ],
+  },
+  {
     version: '0.4.17', date: '2026-10-30', title: 'Links open when you click them',
     items: [
       ['fix', 'Clicking a link now opens it in your default browser even when Discord or a mod (like Vencord\'s OpenInApp) swallows the click. Discord still gets the first go, including its "Leaving Discord" warning; if nothing has happened a moment later, Driftcord opens the link itself. A link never opens twice.'],
