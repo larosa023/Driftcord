@@ -219,6 +219,37 @@ const discordQuality = (() => {
 window.driftcordStreamDebug = () => discordQuality.debug();
 
 /** About → Stream card: what Driftcord could reach on Discord's side. */
+/** What the encoder is really doing right now (WebRTC stats of the share sender). */
+let encStats = null, encBusy = false;
+async function refreshEncoderStats() {
+  if (encBusy) return;
+  encBusy = true;
+  try {
+    let best = null;
+    for (const pc of voicePcs) {
+      if (pc.connectionState === 'closed') continue;
+      for (const sender of pc.getSenders()) {
+        const tr = sender.track;
+        if (!tr || tr.kind !== 'video' || tr.readyState !== 'live') continue;
+        const isShare = shareTracks.has(tr);
+        const report = await sender.getStats();
+        let pair = null;
+        report.forEach((r) => { if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded') && r.availableOutgoingBitrate) pair = r; });
+        report.forEach((r) => {
+          if (r.type !== 'outbound-rtp' || r.kind !== 'video' || !r.frameWidth) return;
+          const cand = { w: r.frameWidth, h: r.frameHeight, fps: Math.round(r.framesPerSecond || 0),
+            why: r.qualityLimitationReason || 'none', changes: r.qualityLimitationResolutionChanges || 0,
+            target: r.targetBitrate ? Math.round(r.targetBitrate / 1000) : 0,
+            est: pair ? Math.round(pair.availableOutgoingBitrate / 1000) : 0, share: isShare, rid: r.rid || '' };
+          if (!best || (cand.share && !best.share) || (cand.share === best.share && cand.w > best.w)) best = cand;
+        });
+      }
+    }
+    encStats = best;
+  } catch (_) { encStats = null; }
+  encBusy = false;
+}
+
 function streamDebugCard() {
   const box = h('div', {});
   const draw = () => {
@@ -232,11 +263,17 @@ function streamDebugCard() {
       row('Quality method patched', yes(d.method), 'getDefaultGoliveQuality'),
       row('Discord sends', d.params ? `${d.params.res} @ ${d.params.fps}` : '—', 'videoStreamParameters'),
       row('Discord track constrained', d.applied || '—'),
+      row('Encoder is really sending', encStats ? `${encStats.w}x${encStats.h} @ ${encStats.fps}` : '—', 'Measured from WebRTC, what leaves this PC'),
+      row('Held back by', encStats ? ({ none: 'nothing', bandwidth: 'bandwidth estimate', cpu: 'CPU', other: 'other' }[encStats.why] || encStats.why) : '—', encStats && encStats.why === 'bandwidth' ? 'The connection says it can only carry about ' + encStats.est + ' kbps' : ''),
+      row('Target bitrate', encStats ? encStats.target + ' kbps' : '—', encStats && encStats.est ? 'Estimate ' + encStats.est + ' kbps' : ''),
       d.errors.length ? h('p', { class: 'hint' }, 'Errors: ' + d.errors.join(' · ')) : null,
       h('p', { class: 'hint' }, 'If a viewer sees less than "Discord sends", screenshot this card for the dev.'),
     );
   };
   draw();
-  const timer = setInterval(() => { if (!box.isConnected) clearInterval(timer); else draw(); }, 2000);
+  const timer = setInterval(() => {
+    if (!box.isConnected) { clearInterval(timer); return; }
+    if (discordQuality.debug().live) refreshEncoderStats().then(draw); else { encStats = null; draw(); }
+  }, 2000);
   return box;
 }

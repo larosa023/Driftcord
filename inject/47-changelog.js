@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.21', date: '2026-10-30', title: 'Stream diagnostics',
+    items: [
+      ['new', 'About → Stream now shows what your encoder is really sending (resolution, fps, bitrate) and what is holding it back. This pins down whether a stream is limited on your PC, by your connection, or by Discord.'],
+    ],
+  },
+  {
     version: '0.4.20', date: '2026-10-30', title: 'Leaner background work',
     items: [
       ['improved', 'Less background work: the memory monitor counts page elements once a minute instead of every 15 s, the frame-rate limiter no longer looks up its setting on every animation frame, and the taskbar badge re-checks less often.'],
