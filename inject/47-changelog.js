@@ -4,6 +4,14 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.24', date: '2026-10-30', title: 'Quality badge, round two',
+    items: [
+      ['fixed', 'The badge in the stream view\'s top bar now shows the stream\'s real quality, not only the one next to the video.'],
+      ['fixed', 'While you share, the Go Live card (the "1440p 1FPS" text) shows what your encoder is really sending.'],
+      ['improved', 'The frame rate shown is the best over the last 12 seconds, so a still screen no longer reads as 1 FPS.'],
+    ],
+  },
+  {
     version: '0.4.23', date: '2026-10-30', title: 'Honest quality badge',
     items: [
       ['fixed', 'The stream quality pill (e.g. "720p 30FPS") now shows what the video really is: its decoded height and measured frame rate, instead of Discord\'s stored label, which could say less than the stream actually was.'],

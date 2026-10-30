@@ -1,27 +1,49 @@
 // ── Honest quality badge ─────────────────────────────────────────────────────
-// Discord's "720p 30FPS" pill comes from stream info it keeps, which can say
-// less than the video really is (a stream that is 1440p/60 can still be
-// labelled 720p/30). Here the pill is rewritten from what the <video> next to
-// it is actually decoding: its real height, and its measured frame rate.
+// Discord's "720p 30FPS" pill (and the Go Live card's "1440p 1FPS") come from
+// stream info it keeps, which can say less than the stream really is. Here the
+// text is rewritten from what is actually measured:
+//   · watching a stream: the decoded height and frame rate of the <video>
+//   · sharing: what the encoder is really sending (WebRTC stats)
+// The frame rate shown is the best over the last ~12 s, so a still screen
+// doesn't make the badge read "1FPS".
 
 const labels = (() => {
-  const PILL = /^\s*(\d{3,4})p\s*(\d{2,3})\s*fps\s*$/i;
-  const SPLIT_A = /^\s*\d{3,4}p\s*$/i, SPLIT_B = /^\s*\d{2,3}\s*fps\s*$/i;
-  const seen = new WeakMap();   // video → { t, frames, fps }
+  const PILL = /^\s*(\d{3,4})p\s*(\d{1,3})\s*fps\s*$/i;
+  const SPLIT_A = /^\s*\d{3,4}p\s*$/i, SPLIT_B = /^\s*\d{1,3}\s*fps\s*$/i;
+  const WINDOW_MS = 12000;
+  const vids = new WeakMap();   // video → { t, frames, samples: [{t, v}] }
+  const ENC = { samples: [] };
   let timer = 0;
+
+  function peak(samples, now) {
+    while (samples.length && now - samples[0].t > WINDOW_MS) samples.shift();
+    let m = 0;
+    for (const s of samples) if (s.v > m) m = s.v;
+    return m;
+  }
 
   function measure(v) {
     const q = v.getVideoPlaybackQuality && v.getVideoPlaybackQuality();
     if (!q || !v.videoWidth) return null;
     const now = performance.now();
-    const s = seen.get(v);
-    if (!s) { seen.set(v, { t: now, frames: q.totalVideoFrames, fps: 0 }); return null; }
+    let s = vids.get(v);
+    if (!s) { vids.set(v, { t: now, frames: q.totalVideoFrames, samples: [] }); return null; }
     const dt = now - s.t;
     if (dt >= 900) {
-      s.fps = ((q.totalVideoFrames - s.frames) * 1000) / dt;
+      s.samples.push({ t: now, v: ((q.totalVideoFrames - s.frames) * 1000) / dt });
       s.t = now; s.frames = q.totalVideoFrames;
     }
-    return s.fps ? { h: v.videoHeight, fps: s.fps } : null;
+    const fps = peak(s.samples, now);
+    return fps ? { h: v.videoHeight, fps } : null;
+  }
+
+  function encoderTruth() {
+    refreshEncoderStats();                       // async; the answer lands on a later scan
+    if (!encStats) return null;
+    const now = performance.now();
+    ENC.samples.push({ t: now, v: encStats.fps });
+    const fps = peak(ENC.samples, now);
+    return fps ? { h: encStats.h, fps } : null;
   }
 
   const niceFps = (f) => {
@@ -32,40 +54,69 @@ const labels = (() => {
   // The video this pill belongs to: the closest ancestor that holds one.
   function videoFor(el) {
     for (let n = el.parentElement, d = 0; n && d < 10; n = n.parentElement, d++) {
-      const vids = n.querySelectorAll('video');
-      if (!vids.length) continue;
+      const vs = n.querySelectorAll('video');
+      if (!vs.length) continue;
       // Two videos in reach means we can't tell which one the pill is for.
-      return vids.length === 1 && vids[0].videoWidth ? vids[0] : null;
+      return vs.length === 1 && vs[0].videoWidth ? vs[0] : null;
     }
     return null;
   }
 
-  function fixPill(el, m) {
+  function loneVideo() {
+    const big = [...document.querySelectorAll('video')].filter((v) => v.videoWidth >= 320);
+    return big.length === 1 ? big[0] : null;
+  }
+
+  function loneVideoAny() { for (const v of document.getElementsByTagName('video')) if (v.videoWidth) return true; return false; }
+
+  function liveShare() { try { return !!discordQuality.debug().live; } catch (_) { return false; } }
+
+  function truthFor(el) {
+    const near = videoFor(el);
+    if (near) return measure(near);
+    if (liveShare()) return encoderTruth();      // e.g. the Go Live card
+    const only = loneVideo();                    // e.g. the badge in the stream view's top bar
+    return only ? measure(only) : null;
+  }
+
+  /** 0 = not a pill, 1 = the text is directly in the element (icons allowed), 2 = two text spans. */
+  function pillMode(el) {
+    const t = el.textContent;
+    if (t.length < 6 || t.length > 16 || !PILL.test(t)) return 0;
+    const texty = [...el.children].filter((k) => k.textContent.trim());
+    if (!texty.length) return 1;
+    if (texty.length === 2 && SPLIT_A.test(texty[0].textContent) && SPLIT_B.test(texty[1].textContent)) return 2;
+    return 0;
+  }
+
+  function fixPill(el, mode, m) {
     const h = m.h + 'p', f = niceFps(m.fps) + 'FPS';
-    const kids = el.children;
-    if (!kids.length) {
+    if (mode === 1) {
       const text = h + ' ' + f;
-      if (el.textContent !== text && el.firstChild) el.firstChild.nodeValue = text;
-    } else if (kids.length === 2 && SPLIT_A.test(kids[0].textContent) && SPLIT_B.test(kids[1].textContent)) {
-      if (kids[0].textContent !== h) kids[0].textContent = h;
-      if (kids[1].textContent !== f) kids[1].textContent = f;
+      if (el.textContent === text) return;
+      const nodes = [...el.childNodes].filter((n) => n.nodeType === 3);
+      if (!nodes.length) return;
+      nodes[0].nodeValue = text;
+      for (const n of nodes.slice(1)) n.nodeValue = '';
+    } else {
+      const [a, b] = [...el.children].filter((k) => k.textContent.trim());
+      if (a.textContent !== h) a.textContent = h;
+      if (b.textContent !== f) b.textContent = f;
     }
   }
 
   function scan() {
-    if (document.hidden || !document.querySelector('video')) return 0;
+    if (document.hidden) return 0;
+    // Only look when there is a stream to measure: a video playing, or we are sharing.
+    if (!loneVideoAny() && !liveShare()) return 0;
     let fixed = 0;
     for (const el of document.querySelectorAll('div,span')) {
-      const t = el.textContent;
-      if (t.length > 16 || t.length < 6) continue;
-      const kids = el.children;
-      const pill = PILL.test(t) && (!kids.length || (kids.length === 2 && SPLIT_A.test(kids[0].textContent) && SPLIT_B.test(kids[1].textContent)));
-      if (!pill) continue;
+      const mode = pillMode(el);
+      if (!mode) continue;
       // Skip wrappers: only the innermost element that holds the whole pill.
-      if ([...kids].some((k) => PILL.test(k.textContent))) continue;
-      const v = videoFor(el);
-      const m = v && measure(v);
-      if (m) { fixPill(el, m); fixed++; }
+      if ([...el.children].some((k) => pillMode(k))) continue;
+      const m = truthFor(el);
+      if (m) { fixPill(el, mode, m); fixed++; }
     }
     return fixed;
   }
