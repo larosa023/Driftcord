@@ -292,6 +292,8 @@ function createPanel() {
         toggleRow('updates.auto', 'Check automatically', 'On launch and every few hours'),
         h('h2', {}, 'Stream'),
         streamDebugCard(),
+        h('h2', {}, 'Links'),
+        linkDebugCard(),
         h('h2', {}, 'Performance'),
         fpsCard(),
         graphicsCard(),

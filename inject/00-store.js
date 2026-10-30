@@ -5,7 +5,7 @@
 const BOOT_T0 = performance.now();
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.4.16';
+const VERSION = '0.4.17';
 // Whether Driftcord had run before (settings existed) when this page loaded.
 const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 

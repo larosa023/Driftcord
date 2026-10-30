@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.17', date: '2026-10-30', title: 'Links open when you click them',
+    items: [
+      ['fix', 'Clicking a link now opens it in your default browser even when Discord or a mod (like Vencord\'s OpenInApp) swallows the click. Discord still gets the first go, including its "Leaving Discord" warning; if nothing has happened a moment later, Driftcord opens the link itself. A link never opens twice.'],
+      ['new', 'About → Links shows how many clicks Driftcord saw and rescued, and why if one failed.'],
+    ],
+  },
+  {
     version: '0.4.16', date: '2026-10-30', title: 'Stream quality, done the Vesktop way',
     items: [
       ['fix', 'Your picked stream quality is now written straight into Discord\'s stream connection (what the voice server and your viewers go by) and kept there while you\'re live, the same way Vesktop does it. Earlier fixes only reached the capture, so Discord kept sending 720p/1080p.'],

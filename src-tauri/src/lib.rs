@@ -71,8 +71,25 @@ fn is_allowed(url: &Url) -> bool {
 
 fn open_external(app: &AppHandle, url: &Url) {
     if matches!(url.scheme(), "http" | "https" | "mailto") {
-        let _ = app.opener().open_url(url.as_str(), None::<&str>);
+        let _ = open_url_once(app, url);
     }
+}
+
+/// Opens a link in the default browser, unless the same link was opened a
+/// moment ago. A click can reach the browser through several routes at once
+/// (the page's own request, a pop-up request, our backup); this keeps it to one.
+fn open_url_once(app: &AppHandle, url: &Url) -> Result<(), String> {
+    static LAST: Mutex<Option<(String, std::time::Instant)>> = Mutex::new(None);
+    {
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((u, at)) = last.as_ref() {
+            if u == url.as_str() && at.elapsed() < std::time::Duration::from_millis(1500) {
+                return Ok(());
+            }
+        }
+        *last = Some((url.as_str().to_string(), std::time::Instant::now()));
+    }
+    app.opener().open_url(url.as_str(), None::<&str>).map_err(|e| e.to_string())
 }
 
 fn show_main(app: &AppHandle) {
@@ -217,7 +234,7 @@ fn open_link(app: AppHandle, url: String) -> Result<(), String> {
     if !matches!(url.scheme(), "http" | "https" | "mailto") {
         return Err("unsupported link".into());
     }
-    app.opener().open_url(url.as_str(), None::<&str>).map_err(|e| e.to_string())
+    open_url_once(&app, &url)
 }
 
 /// The page is in (or left) a voice/video call.
