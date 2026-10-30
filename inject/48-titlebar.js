@@ -198,7 +198,7 @@ function startTitlebar() {
     ensureTitlebar();
     bridge.invoke('win_is_maximized').then(setMaximized).catch(() => {});
     // Discord re-renders its bar; re-attach cheaply (no DOM observers).
-    setInterval(() => { if (!document.hidden) ensureTitlebar(); }, 700);
+    setInterval(() => { if (!document.hidden) ensureTitlebar(); }, 1000);
     let rt = 0;
     window.addEventListener('resize', () => {
       clearTimeout(rt);

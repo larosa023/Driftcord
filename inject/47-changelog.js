@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.9', date: '2026-10-29', title: 'Sharp from the start',
+    items: [
+      ['fix', 'Streams are clear from the first second instead of starting blurry and sharpening over a few seconds. The encoder now starts at the bitrate your chosen quality needs (Discord\'s limit for your account still applies).'],
+      ['improved', 'Lighter in the background: fewer wake-ups while Driftcord sits in the tray.'],
+    ],
+  },
+  {
     version: '0.4.8', date: '2026-10-29', title: 'Cleaner streaming',
     items: [
       ['improved', 'The floating "LIVE" bar is gone while you stream, just like Discord. Stop from Discord\'s own controls, or press Ctrl+Alt+S.'],

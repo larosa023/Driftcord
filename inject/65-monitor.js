@@ -9,6 +9,7 @@ const MON_KEEP = 120; // 30 minutes
 const monSamples = [];
 
 function sampleMemory() {
+  if (document.hidden && monSamples.length) return; // nothing to see in the tray
   const m = performance.memory;
   monSamples.push({
     t: Date.now(),

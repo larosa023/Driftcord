@@ -39,11 +39,18 @@ function trackPc(pc) {
 
 if (window.RTCPeerConnection) {
   const proto = RTCPeerConnection.prototype;
-  for (const name of ['setLocalDescription', 'setRemoteDescription']) {
-    const real = proto[name];
-    if (typeof real !== 'function') continue;
-    proto[name] = function () { trackPc(this); return real.apply(this, arguments); };
-  }
+  const realLocal = proto.setLocalDescription;
+  proto.setLocalDescription = function () { trackPc(this); return realLocal.apply(this, arguments); };
+  const realRemote = proto.setRemoteDescription;
+  proto.setRemoteDescription = function (desc) {
+    trackPc(this);
+    const kbps = streamKbps(this);
+    if (kbps && desc && typeof desc.sdp === 'string' && (desc.type === 'answer' || desc.type === 'offer')) {
+      const sdp = sharpStartSdp(desc.sdp, kbps);
+      if (sdp !== desc.sdp) return realRemote.call(this, { type: desc.type, sdp });
+    }
+    return realRemote.apply(this, arguments);
+  };
   const realClose = proto.close;
   proto.close = function () {
     const r = realClose.apply(this, arguments);
@@ -51,6 +58,65 @@ if (window.RTCPeerConnection) {
     updateCallState();
     return r;
   };
+}
+
+// ── Sharp streams from the first second ──
+// WebRTC starts every video at a few hundred kbps and feels its way up, which
+// is why a stream used to look blurry for its first few seconds. When this
+// connection is sending your screen share, the answer is told to start at the
+// bitrate that share needs (and not dip far below it). Discord's own maximum
+// for your account still applies. Voice and camera are left alone.
+
+function streamKbps(pc) {
+  let kbps = 0;
+  try {
+    for (const s of pc.getSenders()) if (s.track && shareTracks.has(s.track)) kbps = Math.max(kbps, shareTracks.get(s.track));
+  } catch (_) { /* closed */ }
+  return kbps;
+}
+
+const VIDEO_CODECS = /^(VP8|VP9|H264|H265|AV1)$/i;
+
+/** Adds x-google-start/min-bitrate to every video codec in an SDP. */
+function sharpStartSdp(sdp, kbps) {
+  const min = Math.min(Math.round(kbps * 0.3), 1500);
+  const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+  const lines = sdp.split(eol);
+  const out = [];
+  let video = false, pts = new Set(), fmtpSeen = new Set();
+  const setParams = (params) => {
+    const kept = params.split(';').map((p) => p.trim())
+      .filter((p) => p && !/^x-google-(start|min)-bitrate=/i.test(p));
+    return [...kept, 'x-google-start-bitrate=' + kbps, 'x-google-min-bitrate=' + min].join(';');
+  };
+  // Codecs without an fmtp line get one, right after the section's last line.
+  const flush = () => {
+    if (!video) return;
+    for (const pt of pts) if (!fmtpSeen.has(pt)) out.push(`a=fmtp:${pt} x-google-start-bitrate=${kbps};x-google-min-bitrate=${min}`);
+  };
+  for (const line of lines) {
+    if (line.startsWith('m=')) {
+      flush();
+      video = line.startsWith('m=video');
+      pts = new Set(); fmtpSeen = new Set();
+      out.push(line);
+      continue;
+    }
+    if (video) {
+      const rtp = /^a=rtpmap:(\d+) ([\w-]+)\//.exec(line);
+      if (rtp && VIDEO_CODECS.test(rtp[2])) pts.add(rtp[1]);
+      const fmtp = /^a=fmtp:(\d+) (.*)$/.exec(line);
+      if (fmtp && pts.has(fmtp[1])) {
+        fmtpSeen.add(fmtp[1]);
+        out.push(`a=fmtp:${fmtp[1]} ${setParams(fmtp[2])}`);
+        continue;
+      }
+    }
+    out.push(line);
+  }
+  // Keep a trailing empty line (SDP ends with a line break) last.
+  if (out.length && out[out.length - 1] === '') { out.pop(); flush(); out.push(''); } else flush();
+  return out.join(eol);
 }
 
 // ── Instant speaking ring ──

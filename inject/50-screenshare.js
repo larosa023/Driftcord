@@ -462,10 +462,22 @@ function stopStream(stream) {
   }
 }
 
+// Share video tracks → the bitrate (kbps) the encoder should start at, so a
+// stream is sharp from the first second (see 55-voice.js).
+const shareTracks = new WeakMap();
+
+/** Bits a stream of this size and frame rate needs to look clean right away. */
+function shareStartKbps(track) {
+  const s = (track.getSettings && track.getSettings()) || {};
+  const w = s.width || 1920, h = s.height || 1080, fps = s.frameRate || 30;
+  return Math.round(Math.min(10000, Math.max(1500, (w * h * fps * 0.07) / 1000)));
+}
+
 /** Remember the current share (no on-screen bar, like Discord itself) so
  *  Ctrl+Alt+S can stop it. */
 function trackLive(stream) {
   live = { stream };
+  for (const t of stream.getVideoTracks()) shareTracks.set(t, shareStartKbps(t));
   const onEnd = () => { if (live && live.stream === stream) live = null; };
   for (const t of stream.getTracks()) {
     t.addEventListener('ended', onEnd);
