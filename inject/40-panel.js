@@ -290,6 +290,8 @@ function createPanel() {
           h('span', { class: 'desc' }, 'Updates download in the background and install on restart')), checkBtn),
         upd,
         toggleRow('updates.auto', 'Check automatically', 'On launch and every few hours'),
+        h('h2', {}, 'Stream'),
+        streamDebugCard(),
         h('h2', {}, 'Performance'),
         fpsCard(),
         graphicsCard(),

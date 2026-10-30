@@ -526,6 +526,7 @@ function floorApplyConstraints(track, floor, c) {
     pickedQuality = { ...next };
     shareTracks.set(track, shareStartKbps(track));
     if (floor.onRaise) floor.onRaise(next);
+    discordQuality.assert();
   }
   return Promise.resolve();
 }
@@ -567,77 +568,13 @@ function adoptClone(orig, copy) {
   if (shareTracks.has(orig)) shareTracks.set(copy, shareTracks.get(orig));
 }
 
-/** Discord's view of the share's quality. Web Discord asks its own
- *  "default Go Live quality" (720p30 without Nitro) for what to capture and
- *  encode and what to tell the voice server; that is where your pick ends up
- *  being thrown away. Patch that method on Discord's connection class, found
- *  through its webpack module cache, so it answers with your pick while a
- *  Driftcord share is on. Camera and voice are untouched (no share → original
- *  answer). This is what Vencord's WebScreenShare does, at your quality
- *  instead of forced 4K/120. */
-let goliveLifted = false;
-function liftGoliveQuality() {
-  if (goliveLifted) return true;
-  const chunks = window.webpackChunkdiscord_app;
-  if (!chunks || typeof chunks.push !== 'function') return false;
-  let wreq = null;
-  try { chunks.push([[Symbol('driftcord')], {}, (r) => { wreq = r; }]); } catch (_) { return false; }
-  if (!wreq || !wreq.c) return false;
-  const seen = new Set();
-  const consider = (v) => {
-    if (!v || (typeof v !== 'function' && typeof v !== 'object') || seen.has(v)) return false;
-    seen.add(v);
-    const proto = typeof v === 'function' ? v.prototype : v;
-    if (!proto || typeof proto !== 'object') return false;
-    const d = Object.getOwnPropertyDescriptor(proto, 'getDefaultGoliveQuality');
-    if (!d || typeof d.value !== 'function' || d.value.__driftcord) return false;
-    const original = d.value;
-    const patched = function () {
-      const q = original.apply(this, arguments);
-      return pickedQuality ? liftedQuality(q, pickedQuality) : q;
-    };
-    patched.__driftcord = true;
-    Object.defineProperty(proto, 'getDefaultGoliveQuality', { ...d, value: patched });
-    return true;
-  };
-  for (const id in wreq.c) {
-    let exp;
-    try { exp = wreq.c[id].exports; } catch (_) { continue; }
-    if (!exp || exp === window || (typeof exp !== 'object' && typeof exp !== 'function')) continue;
-    try {
-      if (consider(exp)) { goliveLifted = true; break; }
-      let found = false;
-      for (const k of Object.keys(exp)) {
-        let v;
-        try { v = exp[k]; } catch (_) { continue; }
-        if (consider(v)) { found = true; break; }
-      }
-      if (found) { goliveLifted = true; break; }
-    } catch (_) { /* some exports throw on access */ }
-  }
-  return goliveLifted;
-}
-
-/** Discord's quality object with the pick written in. */
-function liftedQuality(q, pick) {
-  q = (q && typeof q === 'object') ? q : {};
-  const dims = { width: pick.w, height: pick.h, framerate: pick.fps, pixelCount: pick.w * pick.h };
-  const kbps = Math.round(Math.min(10000, Math.max(1500, (pick.w * pick.h * pick.fps * 0.07) / 1000)));
-  q.capture = Object.assign(q.capture && typeof q.capture === 'object' ? q.capture : {}, dims);
-  if (q.encode && typeof q.encode === 'object') Object.assign(q.encode, dims);
-  q.bitrateTarget = kbps * 1000;
-  q.bitrateMax = Math.min(25000, Math.round(kbps * 1.5)) * 1000;
-  q.bitrateMin = Math.min(Math.round(kbps * 0.3), 1500) * 1000;
-  return q;
-}
-
 /** Remember the current share (no on-screen bar, like Discord itself) so
  *  Ctrl+Alt+S can stop it. */
 function trackLive(stream) {
   live = { stream };
   for (const t of stream.getVideoTracks()) shareTracks.set(t, shareStartKbps(t));
-  liftGoliveQuality();
-  const onEnd = () => { if (live && live.stream === stream) { live = null; pickedQuality = null; } };
+  discordQuality.onShareStart(stream);
+  const onEnd = () => { if (live && live.stream === stream) { live = null; pickedQuality = null; discordQuality.onShareEnd(); } };
   for (const t of stream.getTracks()) {
     t.addEventListener('ended', onEnd);
     // Native tracks end through stop(); watch that too.
@@ -691,7 +628,7 @@ if (mediaDevices && mediaDevices.getDisplayMedia) {
   };
 
   mediaDevices.getDisplayMedia = async function (constraints = {}) {
-    liftGoliveQuality();
+    discordQuality.prepare();
     let stream;
     if (await canShareNatively()) {
       const pick = await sharePicker();

@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.16', date: '2026-10-30', title: 'Stream quality, done the Vesktop way',
+    items: [
+      ['fix', 'Your picked stream quality is now written straight into Discord\'s stream connection (what the voice server and your viewers go by) and kept there while you\'re live, the same way Vesktop does it. Earlier fixes only reached the capture, so Discord kept sending 720p/1080p.'],
+      ['new', 'About → Stream shows what Driftcord could reach on Discord\'s side and what Discord is sending. If a viewer still sees less, screenshot that card.'],
+    ],
+  },
+  {
     version: '0.4.15', date: '2026-10-30', title: 'Picked 1440p60? Viewers get 1440p60',
     items: [
       ['fix', 'Discord\'s own "default Go Live quality" (720p30 without Nitro) now answers with what you picked in Driftcord, so Discord captures, encodes and reports your quality instead of quietly replacing it. Your own "LIVE" badge should match your pick too.'],
