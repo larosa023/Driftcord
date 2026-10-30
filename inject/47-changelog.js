@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.19', date: '2026-10-30', title: 'Taskbar badge',
+    items: [
+      ['new', 'Unread mentions now show as a red number on the Driftcord taskbar icon, like Discord does (a plain dot for unread-only).'],
+    ],
+  },
+  {
     version: '0.4.18', date: '2026-10-30', title: 'Faster links',
     items: [
       ['improved', 'Links open right away: instantly when Discord ignores the click, and after about 0.2 s (was 0.45 s) when Discord took it over and did nothing.'],

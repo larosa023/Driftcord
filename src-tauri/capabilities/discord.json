@@ -18,6 +18,7 @@
     "allow-set-background",
     "allow-set-in-call",
     "allow-open-link",
+    "allow-set-badge",
     "allow-capture-sources",
     "allow-capture-start",
     "allow-capture-stop",

@@ -47,6 +47,7 @@ fn injection_script() -> String {
         include_str!("../../inject/50-screenshare.js"),
         include_str!("../../inject/52-quality.js"),
         include_str!("../../inject/55-voice.js"),
+        include_str!("../../inject/56-badge.js"),
         include_str!("../../inject/60-updates.js"),
         include_str!("../../inject/65-monitor.js"),
         include_str!("../../inject/99-boot.js"),
@@ -241,6 +242,22 @@ fn open_link(app: AppHandle, url: String) -> Result<(), String> {
 #[tauri::command]
 fn set_in_call(app: AppHandle, on: bool) {
     lean::set_in_call(&app, on);
+}
+
+/// Taskbar overlay badge. Empty `rgba` clears it. Windows only.
+#[tauri::command]
+fn set_badge(app: AppHandle, rgba: Vec<u8>, width: u32, height: u32) {
+    #[cfg(windows)]
+    if let Some(w) = app.get_webview_window(MAIN) {
+        let img = if rgba.is_empty() || rgba.len() != (width * height * 4) as usize {
+            None
+        } else {
+            Some(tauri::image::Image::new_owned(rgba, width, height))
+        };
+        let _ = w.set_overlay_icon(img);
+    }
+    #[cfg(not(windows))]
+    let _ = (app, rgba, width, height);
 }
 
 #[tauri::command]
@@ -441,6 +458,7 @@ pub fn run() {
             set_memory,
             set_background,
             set_in_call,
+            set_badge,
             open_link,
             capture_sources,
             capture_start,
