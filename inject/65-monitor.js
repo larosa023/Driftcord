@@ -8,14 +8,17 @@ const MON_INTERVAL = 15000;
 const MON_KEEP = 120; // 30 minutes
 const monSamples = [];
 
+let monTick = 0, monNodes = 0;
 function sampleMemory() {
   if (document.hidden && monSamples.length) return; // nothing to see in the tray
   const m = performance.memory;
+  // Counting every element walks the whole page, so only do it once a minute.
+  if (monTick++ % 4 === 0) monNodes = document.getElementsByTagName('*').length;
   monSamples.push({
     t: Date.now(),
     heap: m ? m.usedJSHeapSize : 0,
     heapTotal: m ? m.totalJSHeapSize : 0,
-    nodes: document.getElementsByTagName('*').length,
+    nodes: monNodes,
   });
   if (monSamples.length > MON_KEEP) monSamples.shift();
 }
@@ -203,8 +206,10 @@ function halfRateTick(t) {
   }
 }
 
+let halfRateOn = store.get('perf.fps') === 30;   // read once; refreshed on change
+store.onChange((path) => { if (path === '*' || path.startsWith('perf')) halfRateOn = store.get('perf.fps') === 30; });
 window.requestAnimationFrame = function (cb) {
-  if (store.get('perf.fps') !== 30) return rawRAF(cb);
+  if (!halfRateOn) return rawRAF(cb);
   const id = halfRate.nextId++;
   halfRate.callbacks.set(id, cb);
   if (!halfRate.scheduled) { halfRate.scheduled = true; rawRAF(halfRateTick); }

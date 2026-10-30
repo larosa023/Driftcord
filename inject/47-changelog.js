@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.20', date: '2026-10-30', title: 'Leaner background work',
+    items: [
+      ['improved', 'Less background work: the memory monitor counts page elements once a minute instead of every 15 s, the frame-rate limiter no longer looks up its setting on every animation frame, and the taskbar badge re-checks less often.'],
+    ],
+  },
+  {
     version: '0.4.19', date: '2026-10-30', title: 'Taskbar badge',
     items: [
       ['new', 'Unread mentions now show as a red number on the Driftcord taskbar icon, like Discord does (a plain dot for unread-only).'],

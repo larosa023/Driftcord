@@ -47,7 +47,7 @@ const badge = (() => {
     sync();
     const t = document.querySelector('title');
     if (t) new MutationObserver(sync).observe(t, { childList: true, characterData: true, subtree: true });
-    setInterval(sync, 3000);    // <title> gets replaced sometimes
+    setInterval(() => { if (!document.hidden) sync(); }, 10000);    // <title> gets replaced sometimes
   }
   return { start, readTitle };
 })();
