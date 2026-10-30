@@ -247,15 +247,15 @@ function createNativeShare(source, opts) {
   const res0 = SHARE_RES[opts.res] || SHARE_RES['1080p'];
   let caps = { w: res0.w, h: res0.h, fps: opts.fps };
   let applied = {};
-  const startedAt = performance.now();
+  // What you picked in Driftcord is the floor: Discord re-applies its own
+  // quality profile (720p30 without Nitro) as the stream connects, which must
+  // not shrink it. Requests for more (e.g. Source from Discord's menu with
+  // Nitro or FakeNitro) are applied live.
   video.applyConstraints = (c) => {
     c = c || {};
-    // Discord applies its default quality as a stream starts; what you just
-    // picked in Driftcord's picker wins. Changes after that (Discord's stream
-    // quality menu) apply right away.
-    if (performance.now() - startedAt < 2000) { applied = { ...c }; return Promise.resolve(); }
-    const next = constrainCaps(caps, c);
     applied = { ...c };
+    const want = constrainCaps(caps, c);
+    const next = { w: Math.max(caps.w, want.w), h: Math.max(caps.h, want.h), fps: Math.max(caps.fps, want.fps) };
     if (next.w !== caps.w || next.h !== caps.h || next.fps !== caps.fps) {
       caps = next;
       opts.fps = next.fps;

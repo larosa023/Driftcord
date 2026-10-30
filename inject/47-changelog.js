@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.14', date: '2026-10-30', title: 'Your quality, not Discord\'s',
+    items: [
+      ['fix', 'The quality and frame rate you pick in Driftcord\'s share picker are what you stream. Discord\'s own profile (720p30 and about 2.5 Mbps without Nitro) no longer pulls it back down a few seconds in.'],
+      ['improved', 'Asking for more from Discord\'s menu (e.g. Source with Nitro or FakeNitro) still applies live.'],
+    ],
+  },
+  {
     version: '0.4.13', date: '2026-10-30', title: 'Stream quality you can change',
     items: [
       ['fix', 'Changing stream quality from Discord\'s menu while you\'re live now actually changes it (resolution and frame rate), from the next frame, without restarting the stream.'],

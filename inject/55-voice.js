@@ -99,16 +99,33 @@ function shareDegradation(track) {
   return track.contentHint === 'motion' ? 'maintain-framerate' : 'maintain-resolution';
 }
 
+/** Highest bitrate a share may use: headroom over its start bitrate. */
+const shareMaxKbps = (kbps) => Math.min(25000, Math.round(kbps * 1.5));
+
+/** Discord's web client caps every stream at its own quality profile (720p30
+ *  and about 2.5 Mbps without Nitro) through the encoder parameters. Lift
+ *  those to what you picked in Driftcord. Returns true if anything changed. */
+function liftShareParams(p, track) {
+  let changed = false;
+  const want = shareDegradation(track);
+  if (p.degradationPreference !== want) { p.degradationPreference = want; changed = true; }
+  const kbps = shareTracks.get(track) || 0;
+  const fps = (track.getSettings && track.getSettings().frameRate) || 0;
+  for (const e of p.encodings || []) {
+    if (kbps && e.maxBitrate && e.maxBitrate < shareMaxKbps(kbps) * 1000) { e.maxBitrate = shareMaxKbps(kbps) * 1000; changed = true; }
+    if (fps && e.maxFramerate && e.maxFramerate < fps) { e.maxFramerate = fps; changed = true; }
+    if (e.scaleResolutionDownBy && e.scaleResolutionDownBy > 1) { e.scaleResolutionDownBy = 1; changed = true; }
+  }
+  return changed;
+}
+
 function tuneShareSender(sender) {
   const track = sender && sender.track;
   if (!track || !shareTracks.has(track) || !sender.getParameters) return;
   try {
     const p = sender.getParameters();
     if (!p.encodings || !p.encodings.length) return; // not negotiated yet
-    const want = shareDegradation(track);
-    if (p.degradationPreference === want) return;
-    p.degradationPreference = want;
-    realSetParameters.call(sender, p).catch(() => {});
+    if (liftShareParams(p, track)) realSetParameters.call(sender, p).catch(() => {});
   } catch (_) { /* closed or unsupported */ }
 }
 
@@ -117,7 +134,7 @@ const realSetParameters = senderProto && senderProto.setParameters;
 if (realSetParameters) {
   // Discord adjusts the share's parameters too; keep our preference in them.
   senderProto.setParameters = function (params) {
-    if (params && this.track && shareTracks.has(this.track)) params.degradationPreference = shareDegradation(this.track);
+    if (params && this.track && shareTracks.has(this.track)) liftShareParams(params, this.track);
     return realSetParameters.apply(this, arguments);
   };
   const realReplace = senderProto.replaceTrack;
@@ -128,22 +145,27 @@ if (realSetParameters) {
 
 const VIDEO_CODECS = /^(VP8|VP9|H264|H265|AV1)$/i;
 
-/** Adds x-google-start/min-bitrate to every video codec in an SDP. */
+/** Sets x-google-start/min-bitrate on every video codec in an SDP, and lifts
+ *  Discord's x-google-max-bitrate (about 2.5 Mbps without Nitro) to what the
+ *  picked quality needs (a higher existing max, e.g. from a plugin, is kept). */
 function sharpStartSdp(sdp, kbps) {
   const min = Math.min(Math.round(kbps * 0.3), 1500);
+  const maxWanted = shareMaxKbps(kbps);
   const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
   const lines = sdp.split(eol);
   const out = [];
   let video = false, pts = new Set(), fmtpSeen = new Set();
   const setParams = (params) => {
-    const kept = params.split(';').map((p) => p.trim())
-      .filter((p) => p && !/^x-google-(start|min)-bitrate=/i.test(p));
-    return [...kept, 'x-google-start-bitrate=' + kbps, 'x-google-min-bitrate=' + min].join(';');
+    const parts = params.split(';').map((p) => p.trim()).filter(Boolean);
+    const old = parts.find((p) => /^x-google-max-bitrate=/i.test(p));
+    const max = Math.max(maxWanted, old ? Number(old.split('=')[1]) || 0 : 0);
+    const kept = parts.filter((p) => !/^x-google-(start|min|max)-bitrate=/i.test(p));
+    return [...kept, 'x-google-start-bitrate=' + kbps, 'x-google-min-bitrate=' + min, 'x-google-max-bitrate=' + max].join(';');
   };
   // Codecs without an fmtp line get one, right after the section's last line.
   const flush = () => {
     if (!video) return;
-    for (const pt of pts) if (!fmtpSeen.has(pt)) out.push(`a=fmtp:${pt} x-google-start-bitrate=${kbps};x-google-min-bitrate=${min}`);
+    for (const pt of pts) if (!fmtpSeen.has(pt)) out.push(`a=fmtp:${pt} x-google-start-bitrate=${kbps};x-google-min-bitrate=${min};x-google-max-bitrate=${maxWanted}`);
   };
   for (const line of lines) {
     if (line.startsWith('m=')) {
