@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.40', date: '2026-10-31', title: 'Sturdier updates',
+    items: [
+      ['fixed', 'If installing an update fails, the message now has a "Try again" button that re-checks and retries, instead of leaving you with nothing to click.'],
+    ],
+  },
+  {
     version: '0.4.39', date: '2026-10-31', title: 'Simpler Stream card',
     items: [
       ['improved', 'About → Stream now opens with one plain line ("Streaming 1440p @ 60 fps · smooth", or what is holding it back) and keeps the technical rows under an expandable "Technical details".'],
