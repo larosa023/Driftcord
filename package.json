@@ -1,6 +1,6 @@
 {
   "name": "driftcord",
-  "version": "0.4.33",
+  "version": "0.4.34",
   "private": true,
   "description": "A lightweight, debloated, themeable Discord desktop shell built on Tauri.",
   "scripts": {

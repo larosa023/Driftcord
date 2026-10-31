@@ -200,7 +200,11 @@ const labels = (() => {
     out.push('encoder: ' + JSON.stringify(encStats));
     try { out.push('store census: ' + discordQuality.census()); } catch (e) { out.push('store census: error ' + e); }
     out.push('capabilities: ' + (capProbe.text || 'probing…'));
+    out.push('gpu: ' + (gpuProbe.text || 'probing…'));
     out.push('ua: ' + navigator.userAgent);
+    out.push('');
+    out.push('— encoder timeline (newest last; sent = what leaves this PC, source = what the capture delivers) —');
+    try { out.push(...discordQuality.history()); } catch (_) {}
     out.push('');
     out.push('— videos —');
     for (const v of document.getElementsByTagName('video')) {
@@ -258,13 +262,44 @@ const labels = (() => {
       });
   }
 
+  // Which GPU is the browser engine really using? (software rendering, or the wrong card, explains a lot)
+  const gpuProbe = { text: '', t: 0 };
+  async function probeGpu() {
+    if (gpuProbe.t) return;
+    gpuProbe.t = Date.now();
+    const parts = [];
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl2') || c.getContext('webgl');
+      if (gl) {
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        parts.push('webgl=' + (ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+      } else parts.push('webgl=none');
+    } catch (e) { parts.push('webgl error ' + e); }
+    try {
+      if (navigator.gpu) {
+        const a = await navigator.gpu.requestAdapter();
+        const i = a && (a.info || (a.requestAdapterInfo && await a.requestAdapterInfo()));
+        parts.push('webgpu=' + (i ? [i.vendor, i.architecture, i.description].filter(Boolean).join(' ') + (a.isFallbackAdapter ? ' (fallback)' : '') : 'no adapter'));
+      } else parts.push('webgpu=unavailable');
+    } catch (e) { parts.push('webgpu error ' + e); }
+    try {
+      if (navigator.mediaCapabilities) {
+        const d = await navigator.mediaCapabilities.decodingInfo({ type: 'file', video: { contentType: 'video/mp4; codecs="avc1.640033"', width: 2560, height: 1440, framerate: 60, bitrate: 8e6 } });
+        parts.push('H264 decode ' + (d.supported ? (d.powerEfficient ? 'hardware' : 'software only') : 'no'));
+      }
+    } catch (_) {}
+    parts.push('dpr=' + devicePixelRatio + ' screen=' + screen.width + 'x' + screen.height);
+    gpuProbe.text = parts.join(' · ');
+  }
+
   let lastDiag = 0;
   function saveDiagnostics(force) {
     if (!bridge.available()) return Promise.resolve('');
     const now = Date.now();
     if (!force && now - lastDiag < 8000) return Promise.resolve('');
     lastDiag = now;
-    probeCaps();
+    probeCaps(); probeGpu();
     let text;
     try { text = diagnostics(); } catch (e) { text = 'diagnostics failed: ' + (e && e.stack || e); }
     return bridge.invoke('write_diag', { text }).catch((e) => { stats.note += ' (diag write failed: ' + e + ')'; return ''; });

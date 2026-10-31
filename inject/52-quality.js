@@ -256,15 +256,16 @@ const discordQuality = (() => {
       // Discord sets its own values right after the stream starts; keep ours.
       const delays = [0, 100, 300, 700, 1500, 3000];
       for (const d of delays) setTimeout(() => { try { assert(); } catch (e) { fail('assert', e); } }, d);
-      ticker = setInterval(() => { try { assert(); } catch (e) { fail('assert', e); } }, 2000);
+      ticker = setInterval(() => { try { assert(); } catch (e) { fail('assert', e); } refreshEncoderStats(); }, 2000);
       setTimeout(() => {
         if (!state.conn) toast('Stream quality may be capped by Discord', {
           sub: 'Driftcord couldn\'t reach Discord\'s stream connection. See About → Stream.', duration: 8000 });
       }, 3500);
     },
-    onShareEnd() { stream = null; clearInterval(ticker); ticker = 0; },
+    onShareEnd() { stream = null; clearInterval(ticker); ticker = 0; encPrev = null; },
     assert() { try { assert(); } catch (e) { fail('assert', e); } },
     debug() { return { ...state, pick: pickedQuality, live: !!stream }; },
+    history() { return encHistory.slice(); },
     census() { try { return storeCensus(); } catch (e) { return 'census failed: ' + e; } },
   };
 })();
@@ -275,6 +276,18 @@ window.driftcordStreamProbe = () => { discordQuality.prepare(); return { ...disc
 /** About → Stream card: what Driftcord could reach on Discord's side. */
 /** What the encoder is really doing right now (WebRTC stats of the share sender). */
 let encStats = null, encBusy = false;
+/** The last few minutes of encoder health, one line per sample, for the diagnostics file. */
+const encHistory = [];
+let encPrev = null;
+function recordEnc(e) {
+  const now = Date.now();
+  // Average time to encode one frame since the last sample: the real cost of this codec.
+  let encMs = -1;
+  if (encPrev && e.encoded > encPrev.encoded) encMs = Math.round(((e.encTime - encPrev.encTime) / (e.encoded - encPrev.encoded)) * 1000);
+  encPrev = { encoded: e.encoded, encTime: e.encTime };
+  encHistory.push(`${new Date(now).toISOString().slice(11, 19)} sent=${e.w}x${e.h}@${e.fps} source=${e.srcW}x${e.srcH}@${e.srcFps} encodeMs=${encMs} why=${e.why} target=${e.target}kbps est=${e.est}kbps pli=${e.pli} nack=${e.nack}`);
+  if (encHistory.length > 90) encHistory.shift();
+}
 async function refreshEncoderStats() {
   if (encBusy) return;
   encBusy = true;
@@ -292,6 +305,8 @@ async function refreshEncoderStats() {
           if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded') && r.availableOutgoingBitrate) pair = r;
           if (r.type === 'codec' && r.mimeType) codecs[r.id] = r.mimeType.replace(/^video\//i, '') + (r.sdpFmtpLine ? ' (' + r.sdpFmtpLine + ')' : '');
         });
+        let src = null;
+        report.forEach((r) => { if (r.type === 'media-source' && r.kind === 'video') src = r; });
         report.forEach((r) => {
           if (r.type !== 'outbound-rtp' || r.kind !== 'video' || !r.frameWidth) return;
           const cand = { w: r.frameWidth, h: r.frameHeight, fps: Math.round(r.framesPerSecond || 0),
@@ -299,12 +314,16 @@ async function refreshEncoderStats() {
             target: r.targetBitrate ? Math.round(r.targetBitrate / 1000) : 0,
             est: pair ? Math.round(pair.availableOutgoingBitrate / 1000) : 0, share: isShare, rid: r.rid || '',
             codec: codecs[r.codecId] || '', encoder: r.encoderImplementation || '', pli: r.pliCount || 0, nack: r.nackCount || 0,
+            srcFps: src ? Math.round(src.framesPerSecond || 0) : -1, srcW: src ? src.width : 0, srcH: src ? src.height : 0,
+            encoded: r.framesEncoded || 0, encTime: r.totalEncodeTime || 0, sent: r.framesSent || 0, huge: r.hugeFramesSent || 0,
+            limitMs: r.qualityLimitationDurations ? { cpu: Math.round((r.qualityLimitationDurations.cpu || 0) * 1000), bw: Math.round((r.qualityLimitationDurations.bandwidth || 0) * 1000) } : null,
             power: r.powerEfficientEncoder, mode: (() => { try { const e = sender.getParameters().encodings || []; return e.map((x) => x.scalabilityMode || '-').join(','); } catch (_) { return ''; } })() };
           if (!best || (cand.share && !best.share) || (cand.share === best.share && cand.w > best.w)) best = cand;
         });
       }
     }
     encStats = best;
+    if (best && best.share) recordEnc(best);
   } catch (_) { encStats = null; }
   encBusy = false;
 }
