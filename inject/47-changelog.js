@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.33', date: '2026-10-31', title: 'Steadier stream quality',
+    items: [
+      ['fixed', 'After a stretch of a still screen, the stream\'s bandwidth estimate sank to its floor, so the next burst of motion was low quality until it climbed back. The floor is now half your stream\'s start bitrate (up to 5 Mbps), so motion is sharp from the first frame.'],
+      ['fixed', 'The quality badge no longer reads "1FPS" while your screen is simply still: it shows the quality being streamed unless the encoder or bandwidth is actually holding it back.'],
+    ],
+  },
+  {
     version: '0.4.32', date: '2026-10-30', title: 'Download diagnostics',
     items: [
       ['new', 'Driftcord now records what Discord does when you click a download or attachment (net-events.txt in its config folder), so a download that does nothing can be traced.'],

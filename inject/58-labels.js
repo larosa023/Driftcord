@@ -41,7 +41,13 @@ const labels = (() => {
     if (!encStats) return null;
     const now = performance.now();
     ENC.samples.push({ t: now, v: encStats.fps });
-    const fps = peak(ENC.samples, now);
+    let fps = peak(ENC.samples, now);
+    // A still screen sends only a refresh frame now and then, and nothing is holding
+    // the encoder back: show the quality being streamed, not the idle rate.
+    try {
+      const pick = discordQuality.debug().pick;
+      if (pick && encStats.why === 'none' && fps < pick.fps * 0.5) fps = pick.fps;
+    } catch (_) {}
     return fps ? { h: encStats.h, fps } : null;
   }
 

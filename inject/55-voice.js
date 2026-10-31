@@ -152,7 +152,11 @@ const VIDEO_CODECS = /^(VP8|VP9|H264|H265|AV1)$/i;
  *  Discord's x-google-max-bitrate (about 2.5 Mbps without Nitro) to what the
  *  picked quality needs (a higher existing max, e.g. from a plugin, is kept). */
 function sharpStartSdp(sdp, kbps) {
-  const min = Math.min(Math.round(kbps * 0.3), 1500);
+  // The floor the bandwidth estimate may not sink below. A still screen sends almost
+  // nothing, so the estimate decays; with a low floor the next burst of motion is
+  // blurry until it climbs back. Half the start bitrate (at most 5 Mbps) keeps it
+  // ready, and Discord's own maximum still applies on top.
+  const min = Math.min(Math.round(kbps * 0.5), 5000);
   const maxWanted = shareMaxKbps(kbps);
   const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
   const lines = sdp.split(eol);
