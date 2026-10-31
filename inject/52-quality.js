@@ -402,6 +402,21 @@ function softEncodeNotice() {
     restartBtn('Try it & restart'));
 }
 
+/** One plain sentence about how the stream is doing. */
+function streamStatus(d) {
+  if (!d.live) return { text: 'Not sharing right now', tone: 'idle' };
+  if (!encStats) return { text: 'Starting your stream…', tone: 'idle' };
+  const e = encStats, want = d.pick ? d.pick.fps : 0;
+  const res = `${e.h}p @ ${e.fps} fps`;
+  if (adapt.scale > 1 || adapt.motion) return { text: `Streaming ${res} · eased to keep it smooth`, tone: 'warn' };
+  if (e.why === 'bandwidth') return { text: `Streaming ${res} · limited by your connection`, tone: 'warn' };
+  if (e.why === 'cpu') return { text: `Streaming ${res} · your PC is working hard`, tone: 'warn' };
+  if (want && e.fps < want * 0.7 && e.srcFps >= 0 && e.srcFps < want * 0.7) return { text: `Streaming ${res} · screen is mostly still`, tone: 'ok' };
+  return { text: `Streaming ${res} · smooth`, tone: 'ok' };
+}
+
+let streamDetailsOpen = false;
+
 function streamDebugCard() {
   const box = h('div', {});
   if (bridge.available()) bridge.invoke('get_info').then((i) => { appInfo = i; }).catch(() => {});
@@ -409,7 +424,10 @@ function streamDebugCard() {
     const d = discordQuality.debug();
     const yes = (b) => b ? 'yes' : 'no';
     const row = (label, val, desc) => h('div', { class: 'row' }, h('span', { class: 'label' }, label, desc ? h('span', { class: 'desc' }, desc) : null), h('b', {}, val));
-    box.replaceChildren(...[
+    const st = streamStatus(d);
+    const details = h('details', { class: 'tech', ontoggle: (e) => { streamDetailsOpen = e.currentTarget.open; } },
+      h('summary', {}, 'Technical details'),
+      ...[
       row('Sharing now', d.live ? `${d.pick.w}x${d.pick.h} @ ${d.pick.fps}` : 'no'),
       row('Discord internals reached', yes(d.store), d.how ? 'MediaEngineStore via ' + d.how : 'MediaEngineStore via webpack'),
       row('Stream connection found', yes(d.conn), d.live ? (d.userStore ? 'by your user id' : 'UserStore not found; matched by track') : 'Only while you\'re live'),
@@ -420,15 +438,20 @@ function streamDebugCard() {
       row('Held back by', encStats ? ({ none: 'nothing', bandwidth: 'bandwidth estimate', cpu: 'CPU', other: 'other' }[encStats.why] || encStats.why) : '—', encStats && encStats.why === 'bandwidth' ? 'The connection says it can only carry about ' + encStats.est + ' kbps' : ''),
       row('Badge fixer', labels.stats.note, `${labels.stats.videos} video(s), ${labels.stats.pills} badge(s) found, ${labels.stats.fixed} corrected${labels.stats.sample ? ' · not matched: ' + labels.stats.sample : ''}`),
       row('Target bitrate', encStats ? encStats.target + ' kbps' : '—', encStats && encStats.est ? 'Estimate ' + encStats.est + ' kbps' : ''),
-      row('Codec / encoder', encStats ? (encStats.codec || '?') + (encStats.encoder ? ' · ' + encStats.encoder : '') : '—'),
+      row('Codec / encoder', encStats ? (encStats.codec || '?').split(' ')[0] + (encStats.encoder ? ' · ' + encStats.encoder : '') : '—'),
+      ].filter(Boolean));
+    if (streamDetailsOpen) details.setAttribute('open', '');
+    box.replaceChildren(...[
+      h('div', { class: 'row' }, h('span', { class: 'label' }, 'Stream'), h('b', { class: 'tone-' + st.tone }, st.text)),
       softEncodeNotice(),
+      details,
       d.errors.length ? h('p', { class: 'hint' }, 'Errors: ' + d.errors.join(' · ')) : null,
-      h('p', { class: 'hint' }, 'If a badge is wrong, press Save diagnostics and send the file it names to the dev.'),
+      h('p', { class: 'hint' }, 'If something looks wrong, press Save diagnostics. It also saves itself every few seconds while you stream.'),
       h('button', { class: 'btn', onclick: () => {
         diagSaveMsg = 'Saving…'; draw();
         labels.saveDiagnostics(true).then((path) => { diagSaveMsg = path ? 'Saved to ' + path : 'Could not save'; draw(); });
       } }, 'Save diagnostics'),
-      diagSaveMsg ? h('p', { class: 'hint' }, diagSaveMsg + (diagSaveMsg.startsWith('Saved') ? ' (also saved automatically every few seconds while you stream)' : '')) : null,
+      diagSaveMsg ? h('p', { class: 'hint' }, diagSaveMsg) : null,
     ].filter(Boolean));
   };
   draw();

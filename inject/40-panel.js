@@ -118,6 +118,8 @@ kbd { background: var(--d-card); border: 1px solid var(--d-line); border-bottom-
 .notice { background: color-mix(in srgb, var(--d-accent) 12%, var(--d-card)); border: 1px solid color-mix(in srgb, var(--d-accent) 35%, transparent);
   border-radius: 10px; padding: 10px 12px; margin-top: 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; }
 .notice .grow { flex: 1; }
+details.tech { margin: 6px 0; } details.tech > summary { cursor: pointer; color: var(--d-muted); font-size: 12.5px; padding: 6px 0; }
+.tone-ok { color: #3ba55d; } .tone-warn { color: #f0b232; } .tone-idle { color: var(--d-muted); }
 
 /* Toasts */
 .toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 2147483647;

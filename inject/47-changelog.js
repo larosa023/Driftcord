@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.39', date: '2026-10-31', title: 'Simpler Stream card',
+    items: [
+      ['improved', 'About → Stream now opens with one plain line ("Streaming 1440p @ 60 fps · smooth", or what is holding it back) and keeps the technical rows under an expandable "Technical details".'],
+    ],
+  },
+  {
     version: '0.4.38', date: '2026-10-31', title: 'Clearer stream settings',
     items: [
       ['fixed', 'Save diagnostics now keeps showing where the file was saved instead of resetting a moment later.'],
