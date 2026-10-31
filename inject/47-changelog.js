@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.25', date: '2026-10-30', title: 'Badge follows the main stream',
+    items: [
+      ['fixed', 'The top-bar quality badge now finds the stream you are watching even when Discord keeps other small videos on the page.'],
+      ['new', 'About → Stream has a "Badge fixer" line that says what it found, so a badge that does not update can be diagnosed.'],
+    ],
+  },
+  {
     version: '0.4.24', date: '2026-10-30', title: 'Quality badge, round two',
     items: [
       ['fixed', 'The badge in the stream view\'s top bar now shows the stream\'s real quality, not only the one next to the video.'],

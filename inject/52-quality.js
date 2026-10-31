@@ -265,6 +265,7 @@ function streamDebugCard() {
       row('Discord track constrained', d.applied || '—'),
       row('Encoder is really sending', encStats ? `${encStats.w}x${encStats.h} @ ${encStats.fps}` : '—', 'Measured from WebRTC, what leaves this PC'),
       row('Held back by', encStats ? ({ none: 'nothing', bandwidth: 'bandwidth estimate', cpu: 'CPU', other: 'other' }[encStats.why] || encStats.why) : '—', encStats && encStats.why === 'bandwidth' ? 'The connection says it can only carry about ' + encStats.est + ' kbps' : ''),
+      row('Badge fixer', labels.stats.note, `${labels.stats.videos} video(s), ${labels.stats.pills} badge(s) found, ${labels.stats.fixed} corrected${labels.stats.sample ? ' · not matched: ' + labels.stats.sample : ''}`),
       row('Target bitrate', encStats ? encStats.target + ' kbps' : '—', encStats && encStats.est ? 'Estimate ' + encStats.est + ' kbps' : ''),
       d.errors.length ? h('p', { class: 'hint' }, 'Errors: ' + d.errors.join(' · ')) : null,
       h('p', { class: 'hint' }, 'If a viewer sees less than "Discord sends", screenshot this card for the dev.'),

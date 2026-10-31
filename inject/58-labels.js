@@ -14,6 +14,7 @@ const labels = (() => {
   const vids = new WeakMap();   // video → { t, frames, samples: [{t, v}] }
   const ENC = { samples: [] };
   let timer = 0;
+  const stats = { when: 0, videos: 0, pills: 0, fixed: 0, note: 'not run yet', sample: '' };
 
   function peak(samples, now) {
     while (samples.length && now - samples[0].t > WINDOW_MS) samples.shift();
@@ -62,9 +63,15 @@ const labels = (() => {
     return null;
   }
 
-  function loneVideo() {
-    const big = [...document.querySelectorAll('video')].filter((v) => v.videoWidth >= 320);
-    return big.length === 1 ? big[0] : null;
+  // The stream being watched: the biggest video on screen, as long as it is
+  // clearly bigger than any other (so a grid of equal tiles stays untouched).
+  function mainVideo() {
+    const area = (v) => { const r = v.getBoundingClientRect(); return Math.max(0, r.width) * Math.max(0, r.height); };
+    const big = [...document.querySelectorAll('video')].filter((v) => v.videoWidth >= 320)
+      .map((v) => ({ v, a: area(v) })).sort((x, y) => y.a - x.a);
+    if (!big.length) return null;
+    if (big.length === 1) return big[0].v;
+    return big[0].a > 0 && big[0].a >= big[1].a * 1.5 ? big[0].v : null;
   }
 
   function loneVideoAny() { for (const v of document.getElementsByTagName('video')) if (v.videoWidth) return true; return false; }
@@ -75,7 +82,7 @@ const labels = (() => {
     const near = videoFor(el);
     if (near) return measure(near);
     if (liveShare()) return encoderTruth();      // e.g. the Go Live card
-    const only = loneVideo();                    // e.g. the badge in the stream view's top bar
+    const only = mainVideo();                    // e.g. the badge in the stream view's top bar
     return only ? measure(only) : null;
   }
 
@@ -106,18 +113,25 @@ const labels = (() => {
   }
 
   function scan() {
-    if (document.hidden) return 0;
+    stats.when = Date.now();
+    if (document.hidden) { stats.note = 'window hidden'; return 0; }
+    stats.videos = document.getElementsByTagName('video').length;
     // Only look when there is a stream to measure: a video playing, or we are sharing.
-    if (!loneVideoAny() && !liveShare()) return 0;
-    let fixed = 0;
+    if (!loneVideoAny() && !liveShare()) { stats.note = 'no stream playing'; return 0; }
+    let fixed = 0, found = 0;
     for (const el of document.querySelectorAll('div,span')) {
       const mode = pillMode(el);
       if (!mode) continue;
       // Skip wrappers: only the innermost element that holds the whole pill.
       if ([...el.children].some((k) => pillMode(k))) continue;
+      found++;
       const m = truthFor(el);
       if (m) { fixPill(el, mode, m); fixed++; }
+      else if (!stats.sample) stats.sample = el.textContent.trim();
     }
+    stats.pills = found; stats.fixed = fixed;
+    stats.note = !found ? 'no quality badge on screen' : fixed ? 'ok' : 'badge found, no matching video measured yet';
+    if (fixed) stats.sample = '';
     return fixed;
   }
 
@@ -126,5 +140,5 @@ const labels = (() => {
     timer = setInterval(() => { try { scan(); } catch (_) {} }, 1500);
   }
   window.driftcordFixLabels = scan;
-  return { start, scan };
+  return { start, scan, stats };
 })();
