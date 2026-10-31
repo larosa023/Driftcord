@@ -290,7 +290,7 @@ async function refreshEncoderStats() {
         let pair = null; const codecs = {};
         report.forEach((r) => {
           if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded') && r.availableOutgoingBitrate) pair = r;
-          if (r.type === 'codec' && r.mimeType) codecs[r.id] = r.mimeType.replace(/^video\//i, '');
+          if (r.type === 'codec' && r.mimeType) codecs[r.id] = r.mimeType.replace(/^video\//i, '') + (r.sdpFmtpLine ? ' (' + r.sdpFmtpLine + ')' : '');
         });
         report.forEach((r) => {
           if (r.type !== 'outbound-rtp' || r.kind !== 'video' || !r.frameWidth) return;
@@ -298,7 +298,8 @@ async function refreshEncoderStats() {
             why: r.qualityLimitationReason || 'none', changes: r.qualityLimitationResolutionChanges || 0,
             target: r.targetBitrate ? Math.round(r.targetBitrate / 1000) : 0,
             est: pair ? Math.round(pair.availableOutgoingBitrate / 1000) : 0, share: isShare, rid: r.rid || '',
-            codec: codecs[r.codecId] || '', encoder: r.encoderImplementation || '', pli: r.pliCount || 0, nack: r.nackCount || 0 };
+            codec: codecs[r.codecId] || '', encoder: r.encoderImplementation || '', pli: r.pliCount || 0, nack: r.nackCount || 0,
+            power: r.powerEfficientEncoder, mode: (() => { try { const e = sender.getParameters().encodings || []; return e.map((x) => x.scalabilityMode || '-').join(','); } catch (_) { return ''; } })() };
           if (!best || (cand.share && !best.share) || (cand.share === best.share && cand.w > best.w)) best = cand;
         });
       }

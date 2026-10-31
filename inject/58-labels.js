@@ -76,9 +76,22 @@ const labels = (() => {
 
   function liveShare() { try { return !!discordQuality.debug().live; } catch (_) { return false; } }
 
+  /** The local preview of our own share (its track is ours, or it has the picked size). */
+  function isOwnPreview(v) {
+    try {
+      const so = v.srcObject;
+      if (so && so.getVideoTracks) for (const t of so.getVideoTracks()) if (shareTracks.has(t)) return true;
+    } catch (_) {}
+    try { const p = discordQuality.debug().pick; return !!p && v.videoWidth === p.w && v.videoHeight === p.h; } catch (_) { return false; }
+  }
+
   function truthFor(el) {
     const near = videoFor(el);
-    if (near) return measure(near);
+    if (near) {
+      // Our own preview runs at whatever rate the page paints it; what viewers get is what the encoder sends.
+      if (liveShare() && isOwnPreview(near)) return encoderTruth() || measure(near);
+      return measure(near);
+    }
     if (liveShare()) return encoderTruth();      // e.g. the Go Live card
     const only = mainVideo();                    // e.g. the badge in the stream view's top bar
     return only ? measure(only) : null;
@@ -180,6 +193,8 @@ const labels = (() => {
     try { out.push('discordQuality: ' + JSON.stringify(discordQuality.debug())); } catch (e) { out.push('discordQuality: error ' + e); }
     out.push('encoder: ' + JSON.stringify(encStats));
     try { out.push('store census: ' + discordQuality.census()); } catch (e) { out.push('store census: error ' + e); }
+    out.push('capabilities: ' + (capProbe.text || 'probing…'));
+    out.push('ua: ' + navigator.userAgent);
     out.push('');
     out.push('— videos —');
     for (const v of document.getElementsByTagName('video')) {
@@ -211,12 +226,28 @@ const labels = (() => {
     }
     return out.join('\n');
   }
+  // Can this browser encode these in hardware? (mediaCapabilities, asked once per minute)
+  const capProbe = { text: '', t: 0 };
+  function probeCaps() {
+    const now = Date.now();
+    if (now - capProbe.t < 60000 || !navigator.mediaCapabilities || !navigator.mediaCapabilities.encodingInfo) return;
+    capProbe.t = now;
+    const codecs = [['H264 CBP', 'video/H264;profile-level-id=42e01f'], ['H264 Main', 'video/H264;profile-level-id=4d001f'], ['H264 High', 'video/H264;profile-level-id=64001f'],
+      ['VP8', 'video/VP8'], ['VP9', 'video/VP9'], ['AV1', 'video/AV1']];
+    Promise.all(codecs.map(([name, ct]) => navigator.mediaCapabilities.encodingInfo({ type: 'webrtc',
+      video: { contentType: ct, width: 2560, height: 1440, framerate: 60, bitrate: 8000000 } })
+      .then((r) => `${name}: ${r.supported ? (r.powerEfficient ? 'hardware' : 'software only') : 'no'}`)
+      .catch((e) => `${name}: error ${e && e.message || e}`)))
+      .then((lines) => { capProbe.text = lines.join(' · '); });
+  }
+
   let lastDiag = 0;
   function saveDiagnostics(force) {
     if (!bridge.available()) return Promise.resolve('');
     const now = Date.now();
     if (!force && now - lastDiag < 8000) return Promise.resolve('');
     lastDiag = now;
+    probeCaps();
     let text;
     try { text = diagnostics(); } catch (e) { text = 'diagnostics failed: ' + (e && e.stack || e); }
     return bridge.invoke('write_diag', { text }).catch((e) => { stats.note += ' (diag write failed: ' + e + ')'; return ''; });

@@ -4,6 +4,14 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.29', date: '2026-10-30', title: 'Steadier voice rings',
+    items: [
+      ['fixed', 'Speaking rings no longer flicker: they still turn on instantly (40 ms) but fade off gently (180 ms), so brief gaps in voice detection do not blink them.'],
+      ['fixed', 'The quality badge on your own stream tile now shows what your encoder sends, not the frame rate of the small local preview.'],
+      ['new', 'Diagnostics now report whether this PC can hardware-encode H264/VP8/VP9/AV1 at 1440p60, and the exact codec profile the stream negotiated. Groundwork for moving streams off the CPU encoder.'],
+    ],
+  },
+  {
     version: '0.4.28', date: '2026-10-30', title: 'Stream quality: the real fix',
     items: [
       ['fixed', 'Driftcord could not reach Discord\'s stream internals on current Discord builds, so Discord kept believing a share was 720p30 and labelled it that way for everyone, even though the video itself was sent at full quality. The lookup now uses the client mod\'s own module finder (Vencord/Equicord) and matches stores the way current Discord names them.'],

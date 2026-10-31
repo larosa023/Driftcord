@@ -213,8 +213,16 @@ function instantSpeakingRing() {
     if (rules) scanRules(rules);
   }
   if (!ringClasses.size) return;
-  const sel = [...ringClasses].flatMap((c) => ['.' + c, '.' + c + '::before', '.' + c + '::after']).join(',');
-  setCss(ringStyle, sel + ' { transition: none !important; }');
+  // The ring turns on fast (40 ms) and fades off a little slower (180 ms):
+  // the "on" delay is gone, and the brief gaps in voice detection no longer
+  // make it flicker. CSS uses the transition of the state being entered, so
+  // the speaking classes carry the fast value and the base classes the slow.
+  const all = [...ringClasses];
+  const cls = (list) => list.flatMap((c) => ['.' + c, '.' + c + '::before', '.' + c + '::after']).join(',');
+  const on = all.filter((c) => /speaking/i.test(c)), off = all.filter((c) => !/speaking/i.test(c));
+  setCss(ringStyle,
+    (off.length ? cls(off) + ' { transition-duration: 180ms !important; transition-delay: 0s !important; }\n' : '') +
+    (on.length ? cls(on) + ' { transition-duration: 40ms !important; transition-delay: 0s !important; }' : ''));
 }
 
 function scanRules(rules) {
