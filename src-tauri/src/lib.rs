@@ -252,6 +252,88 @@ fn write_diag(app: AppHandle, text: String) -> Result<String, String> {
     Ok(file.to_string_lossy().into_owned())
 }
 
+/// When the page's own download last started (so a rescue can tell it worked).
+static LAST_DL: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+fn note_download_started() {
+    *LAST_DL.lock().unwrap_or_else(|e| e.into_inner()) = Some(std::time::Instant::now());
+}
+
+/// A file name that is safe to create: no folders, no characters Windows rejects.
+fn safe_file_name(raw: &str) -> String {
+    let base = raw.rsplit(['/', '\\']).next().unwrap_or("");
+    let cleaned: String = base
+        .chars()
+        .map(|c| if c.is_control() || "<>:\"|?*".contains(c) { '_' } else { c })
+        .collect();
+    let cleaned = cleaned.trim().trim_matches('.').to_string();
+    if cleaned.is_empty() { "download".into() } else { cleaned.chars().take(150).collect() }
+}
+
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Backup for a download click that did nothing: fetch a Discord attachment
+/// ourselves and save it to Downloads. Returns the saved file's name, or an
+/// empty string if the page's own download went ahead (nothing to do).
+#[tauri::command]
+async fn save_url(app: AppHandle, url: String, name: Option<String>) -> Result<String, String> {
+    let u = Url::parse(&url).map_err(|e| e.to_string())?;
+    let host = u.host_str().unwrap_or_default();
+    if u.scheme() != "https" || !(host == "cdn.discordapp.com" || host == "media.discordapp.net") {
+        return Err("not a Discord attachment".into());
+    }
+    let t0 = std::time::Instant::now();
+    let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(std::time::Duration::from_millis(900))).await;
+    if LAST_DL.lock().unwrap_or_else(|e| e.into_inner()).map(|t| t > t0).unwrap_or(false) {
+        return Ok(String::new());
+    }
+    let fallback = u.path_segments().and_then(|mut s| s.next_back()).map(percent_decode).unwrap_or_default();
+    let file_name = safe_file_name(&name.filter(|n| !n.trim().is_empty()).unwrap_or(fallback));
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let res = mods::client(false)?.get(u).send().await.map_err(|e| format!("download failed: {e}"))?;
+    if !res.status().is_success() {
+        return Err(format!("download failed: HTTP {}", res.status()));
+    }
+    const MAX: u64 = 150 * 1024 * 1024;
+    if res.content_length().map(|l| l > MAX).unwrap_or(false) {
+        return Err("file too large".into());
+    }
+    let bytes = res.bytes().await.map_err(|e| format!("download failed: {e}"))?;
+    if bytes.len() as u64 > MAX {
+        return Err("file too large".into());
+    }
+    let target = unique_download_path(&dir, std::ffi::OsStr::new(&file_name));
+    std::fs::write(&target, &bytes).map_err(|e| e.to_string())?;
+    log_event(&app, &format!("rescued download saved: {}", target.display()));
+    Ok(target.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or(file_name))
+}
+
+/// The last part of net-events.txt, for "Report a problem".
+#[tauri::command]
+fn read_net_events(app: AppHandle) -> String {
+    let Ok(dir) = app.path().app_config_dir() else { return String::new() };
+    let text = std::fs::read_to_string(dir.join("net-events.txt")).unwrap_or_default();
+    let start = text.len().saturating_sub(6000);
+    let start = (start..text.len()).find(|i| text.is_char_boundary(*i)).unwrap_or(text.len());
+    text[start..].to_string()
+}
+
 /// Appends one line to net-events.txt next to the config (navigation, pop-up and
 /// download events, for diagnosing links and downloads). Capped at ~100 KB.
 fn log_event(app: &AppHandle, line: &str) {
@@ -522,6 +604,8 @@ pub fn run() {
             set_background,
             set_in_call,
             reveal_download,
+            save_url,
+            read_net_events,
             log_page_event,
             write_diag,
             set_badge,
@@ -591,6 +675,7 @@ pub fn run() {
                 .on_download(|webview, event| {
                     match event {
                         DownloadEvent::Requested { url, destination } => {
+                            note_download_started();
                             log_event(&webview.app_handle(), &format!("download requested: {url} -> {}", destination.display()));
                             if let Ok(dir) = webview.app_handle().path().download_dir() {
                                 let name = destination

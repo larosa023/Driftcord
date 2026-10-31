@@ -126,6 +126,22 @@ window.__driftcordDownloaded = (name, ok) => {
 
 // ── What a click on a download/attachment really does (diagnostics) ──────────
 // Logged to net-events.txt by the app, next to its own navigation/download events.
+/** If a download click does nothing, the app fetches the file itself (after a short wait). */
+function rescueDownload(el, a, btn, inAttach) {
+  if (!el || !bridge.available()) return;
+  const isCdn = (u) => /^https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\//.test(u || '');
+  const label = ((btn && (btn.getAttribute('aria-label') || '')) + ' ' + (a && (a.getAttribute('aria-label') || '')) + ' ' + (a && a.hasAttribute('download') ? 'download' : '')).toLowerCase();
+  if (!/download/.test(label)) return;
+  let link = a && isCdn(a.href) ? a : null;
+  if (!link && inAttach) link = [...inAttach.querySelectorAll('a[href]')].find((x) => isCdn(x.href)) || null;
+  if (!link) return;
+  let name = a && a.getAttribute('download');
+  if (!name) { try { name = decodeURIComponent(new URL(link.href).pathname.split('/').pop()); } catch (_) { name = ''; } }
+  bridge.invoke('save_url', { url: link.href, name: name || null })
+    .then((saved) => { if (saved) window.__driftcordDownloaded(saved, true); })
+    .catch((err) => { toast('Download failed', { sub: String(err).slice(0, 120), duration: 6000 }); });
+}
+
 (function watchDownloads() {
   const log = (line) => { if (bridge.available()) bridge.invoke('log_page_event', { line }).catch(() => {}); };
   const describe = (a) => `href=${(a.getAttribute('href') || '').slice(0, 220)} target=${a.target || '-'} download=${a.hasAttribute('download') ? JSON.stringify(a.getAttribute('download')) : '-'} class=${(a.className && a.className.baseVal === undefined ? a.className : '').toString().slice(0, 80)}`;
@@ -136,6 +152,7 @@ window.__driftcordDownloaded = (name, ok) => {
     const a = el && el.closest('a');
     const btn = el && el.closest('[role="button"], button');
     const inAttach = el && el.closest('[class*="attachment"], [class*="fileAttachment"], [class*="textFile"], [class*="download"]');
+    rescueDownload(el, a, btn, inAttach);
     if (a && (a.hasAttribute('download') || inAttach || /discordapp|discord\.com/.test(a.href || ''))) {
       if (/attachments|download|\.txt/i.test((a.href || '') + (a.getAttribute('download') || '') + (inAttach ? 'download' : ''))) log('click anchor ' + describe(a));
     } else if (inAttach && btn) {

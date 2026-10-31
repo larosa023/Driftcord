@@ -3,6 +3,8 @@
 // downloads it, runs the installer quietly and restarts the app.
 
 let updateToast = null;
+let pendingUpdate = null;   // an update found but not installed yet
+let lastUpdateCheck = 0;
 
 /** Returns the update info, `null` when up to date, or `undefined` on error. */
 async function checkForUpdates(manual = false) {
@@ -11,7 +13,9 @@ async function checkForUpdates(manual = false) {
     return undefined;
   }
   try {
+    lastUpdateCheck = Date.now();
     const u = await bridge.invoke('check_update');
+    pendingUpdate = u || null;
     if (u) offerUpdate(u);
     else if (manual) toast('You\'re on the latest version', { sub: 'Driftcord ' + VERSION, duration: 3500 });
     return u || null;
@@ -49,5 +53,9 @@ function startUpdateChecks() {
   if (!bridge.available()) return;
   const tick = () => { if (store.get('updates.auto')) checkForUpdates(false); };
   setTimeout(tick, 15000);                   // shortly after launch
-  setInterval(tick, 6 * 60 * 60 * 1000);     // then every 6 hours
+  setInterval(tick, 3 * 60 * 60 * 1000);     // then every 3 hours
+  // Back from a long sleep or a day in the tray: look right away.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && Date.now() - lastUpdateCheck > 60 * 60 * 1000) tick();
+  });
 }

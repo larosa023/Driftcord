@@ -284,13 +284,16 @@ function createPanel() {
         const u = await checkForUpdates(true);
         upd.textContent = u ? `Version ${u.version} is available.` : (u === null ? 'You\'re up to date.' : '');
         checkBtn.disabled = false;
+        render();
       } }, 'Check now');
+      const installBtn = pendingUpdate ? h('button', { class: 'btn primary', onclick: (e) => { e.currentTarget.disabled = true; installUpdate(); } }, `Update to ${pendingUpdate.version} & restart`) : null;
+      if (pendingUpdate) upd.textContent = `Version ${pendingUpdate.version} is ready to install.`;
       return [
         h('h2', {}, 'Updates'),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Driftcord ' + VERSION,
-          h('span', { class: 'desc' }, 'Updates download in the background and install on restart')), checkBtn),
+          h('span', { class: 'desc' }, 'Updates download in the background and install on restart')), installBtn || checkBtn),
         upd,
-        toggleRow('updates.auto', 'Check automatically', 'On launch and every few hours'),
+        toggleRow('updates.auto', 'Check automatically', 'On launch, every few hours, and when you come back to the app'),
         h('h2', {}, 'Stream'),
         streamDebugCard(),
         h('h2', {}, 'Links'),
@@ -330,12 +333,43 @@ function createPanel() {
             if (confirm('Reset all Driftcord settings?')) { store.reset(); render(); }
           } }, 'Reset all')),
         status,
+        h('h2', {}, 'Something wrong?'),
+        reportCard(),
         h('h2', {}, 'About'),
         h('p', { class: 'hint' }, `Driftcord ${VERSION}. A lightweight shell around Discord's web app. ` +
           'Not affiliated with Discord. Using modified clients is against Discord\'s Terms of Service.'),
       ];
     },
   };
+
+  /** One click: copies a diagnostics report and opens a pre-filled GitHub issue. */
+  function reportCard() {
+    const msg = h('p', { class: 'hint' }, 'Copies a report (version, settings, what the stream is doing) to your clipboard and opens the issue page. No account tokens or messages are included.');
+    const copy = async (text) => {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
+      try {
+        const ta = h('textarea', { style: 'position:fixed;opacity:0' }); ta.value = text; document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy'); ta.remove(); return ok;
+      } catch (_) { return false; }
+    };
+    const btn = h('button', { class: 'btn primary', onclick: async () => {
+      btn.disabled = true;
+      let diag = '';
+      try { diag = labels.diagnostics(); } catch (e) { diag = 'diagnostics failed: ' + e; }
+      let events = '';
+      try { if (bridge.available()) events = await bridge.invoke('read_net_events'); } catch (_) {}
+      const s = JSON.parse(JSON.stringify(store.all()));
+      delete s.customCss; if (s.screenshare) delete s.screenshare.lastSource;
+      const report = `Driftcord ${VERSION}\n${navigator.userAgent}\n\nSettings:\n${JSON.stringify(s)}\n\n${diag}\n\nRecent events:\n${String(events || '').split('\n').slice(-40).join('\n')}`;
+      const ok = await copy(report);
+      msg.textContent = ok ? 'Report copied. Paste it into the issue that just opened.' : 'Could not copy the report. Use Save diagnostics in the Stream card instead.';
+      const body = encodeURIComponent('What went wrong?\n\n\n(paste the report below)\n');
+      const url = `https://github.com/larosa023/Driftcord/issues/new?title=${encodeURIComponent('Problem on ' + VERSION)}&body=${body}`;
+      if (bridge.available()) bridge.invoke('open_link', { url }).catch(() => {}); else window.open(url, '_blank');
+      btn.disabled = false;
+    } }, 'Report a problem');
+    return h('div', {}, h('div', { class: 'btns' }, btn), msg);
+  }
 
   // Clean → Performance: Boosted graphics (applies on restart).
   function gpuBoostRow() {

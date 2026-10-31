@@ -4,6 +4,15 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.36', date: '2026-10-31', title: 'Downloads, reports and updates',
+    items: [
+      ['fixed', 'Download buttons on attachments (like .txt files) that did nothing now work: if Discord\'s own download doesn\'t start, Driftcord fetches the file itself and saves it to Downloads, with a "Show in folder" button.'],
+      ['new', 'About → Something wrong? One click copies a diagnostics report and opens a pre-filled issue page.'],
+      ['new', 'If your stream is being encoded on the CPU, Stream settings offers a one-click "Try it & restart" for Boosted graphics, which may let Windows use your graphics card.'],
+      ['improved', 'Updates: checked every 3 hours and when you return to the app after a while. A waiting update shows an install button in About.'],
+    ],
+  },
+  {
     version: '0.4.35', date: '2026-10-31', title: 'Adaptive stream quality',
     items: [
       ['new', 'Adaptive quality: if your PC can\'t encode your stream fast enough, or your bandwidth dips, Driftcord eases it a step (smaller picture, or a softer picture at a steady frame rate) instead of letting it crawl, then steps back up once it has run cleanly. A still screen is not treated as a problem. Turn it off in Stream settings.'],

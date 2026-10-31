@@ -107,7 +107,7 @@ pub fn startup_script(app: &AppHandle, id: &str) -> Option<String> {
 /// `public_only`: for requests on behalf of mods (GM_xmlhttpRequest), only
 /// public addresses, checked at DNS time and without a proxy. Downloads of the
 /// mods themselves come from GitHub and may use the system proxy.
-fn client(public_only: bool) -> Result<reqwest::Client, String> {
+pub(crate) fn client(public_only: bool) -> Result<reqwest::Client, String> {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         let _ = rustls::crypto::ring::default_provider().install_default();

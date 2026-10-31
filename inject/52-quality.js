@@ -381,6 +381,17 @@ async function refreshEncoderStats() {
   encBusy = false;
 }
 
+/** Offer Boosted graphics when video is being encoded on the CPU (OpenH264). */
+function softEncodeNotice() {
+  if (!encStats || !/openh264/i.test(encStats.encoder || '') || !bridge.available()) return null;
+  return h('div', { class: 'notice' },
+    h('span', { class: 'grow' }, 'Your stream is being encoded on the CPU. Boosted graphics can let Windows use your graphics card instead (takes effect after a restart; not guaranteed on every PC).'),
+    h('button', { class: 'btn primary', onclick: (e) => {
+      e.currentTarget.disabled = true;
+      bridge.invoke('set_memory', { gpuBoost: true }).then(() => bridge.invoke('restart_app')).catch(() => {});
+    } }, 'Try it & restart'));
+}
+
 function streamDebugCard() {
   const box = h('div', {});
   const draw = () => {
@@ -399,6 +410,7 @@ function streamDebugCard() {
       row('Badge fixer', labels.stats.note, `${labels.stats.videos} video(s), ${labels.stats.pills} badge(s) found, ${labels.stats.fixed} corrected${labels.stats.sample ? ' · not matched: ' + labels.stats.sample : ''}`),
       row('Target bitrate', encStats ? encStats.target + ' kbps' : '—', encStats && encStats.est ? 'Estimate ' + encStats.est + ' kbps' : ''),
       row('Codec / encoder', encStats ? (encStats.codec || '?') + (encStats.encoder ? ' · ' + encStats.encoder : '') : '—'),
+      softEncodeNotice(),
       d.errors.length ? h('p', { class: 'hint' }, 'Errors: ' + d.errors.join(' · ')) : null,
       h('p', { class: 'hint' }, 'If a badge is wrong, press Save diagnostics and send the file it names to the dev.'),
       h('button', { class: 'btn', onclick: (e) => {
