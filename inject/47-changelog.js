@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.26', date: '2026-10-30', title: 'Quality badge, fixed for real',
+    items: [
+      ['fixed', 'The "720p 30FPS LIVE" badge in the call header now updates to the real quality. Discord splits that badge into separate pieces with LIVE in the same box, which the previous fix did not recognise. The badge text is now found and rewritten piece by piece, whatever the layout.'],
+    ],
+  },
+  {
     version: '0.4.25', date: '2026-10-30', title: 'Badge follows the main stream',
     items: [
       ['fixed', 'The top-bar quality badge now finds the stream you are watching even when Discord keeps other small videos on the page.'],

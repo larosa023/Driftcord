@@ -8,8 +8,6 @@
 // doesn't make the badge read "1FPS".
 
 const labels = (() => {
-  const PILL = /^\s*(\d{3,4})p\s*(\d{1,3})\s*fps\s*$/i;
-  const SPLIT_A = /^\s*\d{3,4}p\s*$/i, SPLIT_B = /^\s*\d{1,3}\s*fps\s*$/i;
   const WINDOW_MS = 12000;
   const vids = new WeakMap();   // video → { t, frames, samples: [{t, v}] }
   const ENC = { samples: [] };
@@ -86,30 +84,59 @@ const labels = (() => {
     return only ? measure(only) : null;
   }
 
-  /** 0 = not a pill, 1 = the text is directly in the element (icons allowed), 2 = two text spans. */
-  function pillMode(el) {
-    const t = el.textContent;
-    if (t.length < 6 || t.length > 16 || !PILL.test(t)) return 0;
-    const texty = [...el.children].filter((k) => k.textContent.trim());
-    if (!texty.length) return 1;
-    if (texty.length === 2 && SPLIT_A.test(texty[0].textContent) && SPLIT_B.test(texty[1].textContent)) return 2;
-    return 0;
+  // Quality text is found as text nodes, so it does not matter how Discord
+  // nests the pieces ("720p" / "30FPS" / "LIVE" may each be their own span, or
+  // one string with an icon in front).
+  const COMBINED = /^(\s*)(\d{3,4})p(\s+)(\d{1,3})\s*FPS(\s*)$/i;
+  const RES_ONLY = /^(\s*)(\d{3,4})p(\s*)$/i;
+  const FPS_ONLY = /^(\s*)(\d{1,3})\s*FPS(\s*)$/i;
+
+  function textNodes() {
+    const out = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        const v = n.nodeValue;
+        if (!v || v.length > 16 || !/\d/.test(v)) return NodeFilter.FILTER_REJECT;
+        const p = n.parentElement;
+        if (!p || p.closest('script,style,textarea,#driftcord-root')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) out.push(n);
+    return out;
   }
 
-  function fixPill(el, mode, m) {
-    const h = m.h + 'p', f = niceFps(m.fps) + 'FPS';
-    if (mode === 1) {
-      const text = h + ' ' + f;
-      if (el.textContent === text) return;
-      const nodes = [...el.childNodes].filter((n) => n.nodeType === 3);
-      if (!nodes.length) return;
-      nodes[0].nodeValue = text;
-      for (const n of nodes.slice(1)) n.nodeValue = '';
-    } else {
-      const [a, b] = [...el.children].filter((k) => k.textContent.trim());
-      if (a.textContent !== h) a.textContent = h;
-      if (b.textContent !== f) b.textContent = f;
+  /** Every quality badge on the page: { anchor, res: node, fps: node|null, combined: bool } */
+  function findPills() {
+    const nodes = textNodes(), pills = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i], v = n.nodeValue;
+      if (COMBINED.test(v)) { pills.push({ anchor: n.parentElement, res: n, fps: null, combined: true }); continue; }
+      if (!RES_ONLY.test(v)) continue;
+      // The frame-rate piece is the next text node, inside the same small box.
+      const next = nodes[i + 1];
+      if (!next || !FPS_ONLY.test(next.nodeValue)) continue;
+      const box = n.parentElement.closest('div,span,li,button,a') || n.parentElement;
+      const common = box.contains(next) ? box : box.parentElement;
+      if (!common || !common.contains(next) || common === document.body) continue;
+      pills.push({ anchor: common, res: n, fps: next, combined: false });
+      i++;
     }
+    return pills;
+  }
+
+  function fixPill(pill, m) {
+    const h = m.h + 'p', f = niceFps(m.fps) + 'FPS';
+    if (pill.combined) {
+      const mm = COMBINED.exec(pill.res.nodeValue);
+      const text = mm[1] + h + mm[3] + f + mm[5];
+      if (pill.res.nodeValue !== text) pill.res.nodeValue = text;
+      return;
+    }
+    const r = RES_ONLY.exec(pill.res.nodeValue), q = FPS_ONLY.exec(pill.fps.nodeValue);
+    const rt = r[1] + h + r[3], ft = q[1] + f + q[3];
+    if (pill.res.nodeValue !== rt) pill.res.nodeValue = rt;
+    if (pill.fps.nodeValue !== ft) pill.fps.nodeValue = ft;
   }
 
   function scan() {
@@ -118,19 +145,16 @@ const labels = (() => {
     stats.videos = document.getElementsByTagName('video').length;
     // Only look when there is a stream to measure: a video playing, or we are sharing.
     if (!loneVideoAny() && !liveShare()) { stats.note = 'no stream playing'; return 0; }
-    let fixed = 0, found = 0;
-    for (const el of document.querySelectorAll('div,span')) {
-      const mode = pillMode(el);
-      if (!mode) continue;
-      // Skip wrappers: only the innermost element that holds the whole pill.
-      if ([...el.children].some((k) => pillMode(k))) continue;
-      found++;
-      const m = truthFor(el);
-      if (m) { fixPill(el, mode, m); fixed++; }
-      else if (!stats.sample) stats.sample = el.textContent.trim();
+    let fixed = 0;
+    const pills = findPills();
+    stats.sample = '';
+    for (const pill of pills) {
+      const m = truthFor(pill.anchor);
+      if (m) { fixPill(pill, m); fixed++; }
+      else if (!stats.sample) stats.sample = (pill.res.nodeValue + (pill.fps ? ' ' + pill.fps.nodeValue : '')).trim();
     }
-    stats.pills = found; stats.fixed = fixed;
-    stats.note = !found ? 'no quality badge on screen' : fixed ? 'ok' : 'badge found, no matching video measured yet';
+    stats.pills = pills.length; stats.fixed = fixed;
+    stats.note = !pills.length ? 'no quality badge on screen' : fixed ? 'ok' : 'badge found, no matching video measured yet';
     if (fixed) stats.sample = '';
     return fixed;
   }
