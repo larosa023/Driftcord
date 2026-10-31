@@ -127,13 +127,29 @@ window.__driftcordDownloaded = (name, ok) => {
 // ── What a click on a download/attachment really does (diagnostics) ──────────
 // Logged to net-events.txt by the app, next to its own navigation/download events.
 /** If a download click does nothing, the app fetches the file itself (after a short wait). */
+let lastAttachLink = null;   // the attachment the pointer was last over (for the "..." menu's Download item)
+const isCdnAttachment = (u) => /^https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\//.test(u || '');
+const ATTACH_SEL = '[class*="attachment"], [class*="fileAttachment"], [class*="textFile"], [class*="download"]';
+
+document.addEventListener('pointerover', (e) => {
+  const el = e.target instanceof Element ? e.target : null;
+  const box = el && el.closest(ATTACH_SEL);
+  if (!box) return;
+  const l = [...box.querySelectorAll('a[href]')].find((x) => isCdnAttachment(x.href));
+  if (l) lastAttachLink = l;
+}, true);
+
 function rescueDownload(el, a, btn, inAttach) {
   if (!el || !bridge.available()) return;
-  const isCdn = (u) => /^https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\//.test(u || '');
-  const label = ((btn && (btn.getAttribute('aria-label') || '')) + ' ' + (a && (a.getAttribute('aria-label') || '')) + ' ' + (a && a.hasAttribute('download') ? 'download' : '')).toLowerCase();
-  if (!/download/.test(label)) return;
-  let link = a && isCdn(a.href) ? a : null;
-  if (!link && inAttach) link = [...inAttach.querySelectorAll('a[href]')].find((x) => isCdn(x.href)) || null;
+  const text = (x) => x ? ((x.getAttribute('aria-label') || '') + ' ' + (x.textContent || '').slice(0, 40)).toLowerCase() : '';
+  const item = el.closest('[role="menuitem"], [class*="menuItem"]');
+  const menuDownload = item && /^\s*download\s*$/i.test((item.textContent || '').trim());
+  const labelled = /download/.test(text(btn) + ' ' + (a && a.hasAttribute('download') ? 'download' : '') + ' ' + (a ? (a.getAttribute('aria-label') || '') : ''));
+  const fileLink = a && inAttach && isCdnAttachment(a.href) && !a.querySelector('img, video') && !(inAttach.querySelector('img, video'));
+  if (!menuDownload && !labelled && !fileLink) return;
+  let link = a && isCdnAttachment(a.href) ? a : null;
+  if (!link && inAttach) link = [...inAttach.querySelectorAll('a[href]')].find((x) => isCdnAttachment(x.href)) || null;
+  if (!link && menuDownload) link = lastAttachLink;
   if (!link) return;
   let name = a && a.getAttribute('download');
   if (!name) { try { name = decodeURIComponent(new URL(link.href).pathname.split('/').pop()); } catch (_) { name = ''; } }
@@ -151,7 +167,7 @@ function rescueDownload(el, a, btn, inAttach) {
     const el = t instanceof Element ? t : null;
     const a = el && el.closest('a');
     const btn = el && el.closest('[role="button"], button');
-    const inAttach = el && el.closest('[class*="attachment"], [class*="fileAttachment"], [class*="textFile"], [class*="download"]');
+    const inAttach = el && el.closest(ATTACH_SEL);
     rescueDownload(el, a, btn, inAttach);
     if (a && (a.hasAttribute('download') || inAttach || /discordapp|discord\.com/.test(a.href || ''))) {
       if (/attachments|download|\.txt/i.test((a.href || '') + (a.getAttribute('download') || '') + (inAttach ? 'download' : ''))) log('click anchor ' + describe(a));

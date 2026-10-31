@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.37', date: '2026-10-31', title: 'Text file downloads',
+    items: [
+      ['fixed', 'Text-file attachments (like message.txt) now save to Downloads when you click the file name or choose Download from the "…" menu, even if Discord\'s own download does nothing.'],
+    ],
+  },
+  {
     version: '0.4.36', date: '2026-10-31', title: 'Downloads, reports and updates',
     items: [
       ['fixed', 'Download buttons on attachments (like .txt files) that did nothing now work: if Discord\'s own download doesn\'t start, Driftcord fetches the file itself and saves it to Downloads, with a "Show in folder" button.'],
