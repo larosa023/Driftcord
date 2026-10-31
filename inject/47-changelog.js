@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.35', date: '2026-10-31', title: 'Adaptive stream quality',
+    items: [
+      ['new', 'Adaptive quality: if your PC can\'t encode your stream fast enough, or your bandwidth dips, Driftcord eases it a step (smaller picture, or a softer picture at a steady frame rate) instead of letting it crawl, then steps back up once it has run cleanly. A still screen is not treated as a problem. Turn it off in Stream settings.'],
+    ],
+  },
+  {
     version: '0.4.34', date: '2026-10-31', title: 'Stream timeline',
     items: [
       ['new', 'Diagnostics now keep a running timeline while you stream (capture rate, encoder rate, time to encode a frame, bandwidth) and report which graphics card the engine is using, so a drop in frame rate can be traced to its cause.'],

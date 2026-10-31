@@ -5,7 +5,7 @@
 const BOOT_T0 = performance.now();
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.4.34';
+const VERSION = '0.4.35';
 // Whether Driftcord had run before (settings existed) when this page loaded.
 const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 
@@ -38,6 +38,7 @@ const DEFAULTS = {
     fps: 30,
     mode: 'balanced',    // 'motion' | 'balanced' | 'detail'
     audio: true,
+    adaptive: true,      // ease the stream if the PC/connection can't keep up
     lastSource: null,
     lastTab: 'screen',
   },

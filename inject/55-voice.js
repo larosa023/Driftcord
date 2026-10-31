@@ -96,8 +96,11 @@ function streamKbps(pc) {
 // the "starts blurry, sharpens while you watch" effect. Sharp/Balanced trade
 // frame rate instead; Smooth keeps frame rate (and may scale).
 function shareDegradation(track) {
-  return track.contentHint === 'motion' ? 'maintain-framerate' : 'maintain-resolution';
+  return adapt.motion || track.contentHint === 'motion' ? 'maintain-framerate' : 'maintain-resolution';
 }
+
+/** Set by the adaptive controller (52-quality) when the encoder or bandwidth can't keep up. */
+const adapt = { scale: 1, motion: false };
 
 /** Highest bitrate a share may use: headroom over its start bitrate. */
 const shareMaxKbps = (kbps) => Math.min(25000, Math.round(kbps * 1.5));
@@ -117,7 +120,7 @@ function liftShareParams(p, track) {
   if (e) {
     if (kbps && e.maxBitrate && e.maxBitrate < shareMaxKbps(kbps) * 1000) { e.maxBitrate = shareMaxKbps(kbps) * 1000; changed = true; }
     if (fps && e.maxFramerate && e.maxFramerate < fps) { e.maxFramerate = fps; changed = true; }
-    if (e.scaleResolutionDownBy && e.scaleResolutionDownBy > 1) { e.scaleResolutionDownBy = 1; changed = true; }
+    if ((e.scaleResolutionDownBy || 1) !== adapt.scale) { e.scaleResolutionDownBy = adapt.scale; changed = true; }
   }
   return changed;
 }

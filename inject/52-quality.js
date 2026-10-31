@@ -262,10 +262,10 @@ const discordQuality = (() => {
           sub: 'Driftcord couldn\'t reach Discord\'s stream connection. See About → Stream.', duration: 8000 });
       }, 3500);
     },
-    onShareEnd() { stream = null; clearInterval(ticker); ticker = 0; encPrev = null; },
+    onShareEnd() { stream = null; clearInterval(ticker); ticker = 0; encPrev = null; adaptReset(); },
     assert() { try { assert(); } catch (e) { fail('assert', e); } },
     debug() { return { ...state, pick: pickedQuality, live: !!stream }; },
-    history() { return encHistory.slice(); },
+    history() { return [...encHistory, ...adaptState.notes.slice(-10)]; },
     census() { try { return storeCensus(); } catch (e) { return 'census failed: ' + e; } },
   };
 })();
@@ -274,6 +274,59 @@ window.driftcordStreamDebug = () => discordQuality.debug();
 window.driftcordStreamProbe = () => { discordQuality.prepare(); return { ...discordQuality.debug(), census: discordQuality.census() }; };
 
 /** About → Stream card: what Driftcord could reach on Discord's side. */
+// ── Adaptive quality ─────────────────────────────────────────────────────────
+// If frames are being captured but the encoder can't send them (CPU-bound, or the
+// bandwidth estimate collapsed), ease the load instead of letting the stream
+// crawl: first keep the frame rate and let the picture soften (bandwidth), or
+// shrink what is encoded a step at a time (CPU). Step back up once it has run
+// cleanly for a while. A still screen (the capture itself is slow) is not a problem.
+const ADAPT_SCALES = [1, 4 / 3, 16 / 9];
+const adaptState = { bad: 0, goodSince: 0, lastChange: 0, recoverWait: 40000, lastRecover: 0, level: 0, notes: [] };
+
+function adaptApply() { for (const pc of voicePcs) tuneSenders(pc); }
+
+function adaptReset() {
+  adaptState.bad = 0; adaptState.goodSince = 0; adaptState.lastChange = 0; adaptState.level = 0; adaptState.recoverWait = 40000;
+  if (adapt.scale !== 1 || adapt.motion) { adapt.scale = 1; adapt.motion = false; adaptApply(); }
+}
+
+function adaptTick(e, pick = pickedQuality) {
+  if (store.get('screenshare.adaptive') === false) { if (adapt.scale !== 1 || adapt.motion) adaptReset(); return; }
+  if (!pick || !e || !e.fps) return;
+  const now = Date.now();
+  const want = pick.fps;
+  const captureOk = e.srcFps < 0 || e.srcFps >= want * 0.8;     // frames are being delivered
+  const slow = captureOk && e.fps < want * 0.7;
+  adaptState.bad = slow ? adaptState.bad + 1 : 0;
+  if (slow) adaptState.goodSince = 0;
+  else if (!adaptState.goodSince && e.fps >= want * 0.9) adaptState.goodSince = now;
+
+  if (adaptState.bad >= 3 && now - adaptState.lastChange > 8000) {
+    adaptState.bad = 0; adaptState.lastChange = now; adaptState.goodSince = 0;
+    // Re-eased soon after recovering: wait longer before trying again.
+    if (now - adaptState.lastRecover < 90000) adaptState.recoverWait = Math.min(adaptState.recoverWait * 2, 300000);
+    if (e.why === 'bandwidth' && !adapt.motion) {
+      adapt.motion = true; adaptApply();
+      toast('Keeping your stream smooth', { sub: 'Bandwidth dipped, so the picture may soften briefly instead of stuttering.', duration: 5000 });
+    } else if (adaptState.level < ADAPT_SCALES.length - 1) {
+      adaptState.level++; adapt.scale = ADAPT_SCALES[adaptState.level]; adaptApply();
+      toast('Keeping your stream smooth', { sub: `Your PC couldn't encode full quality at ${want} fps, so it's sending ${Math.round(pick.h / adapt.scale)}p for now.`, duration: 6000 });
+    }
+    adaptState.notes.push(`${new Date(now).toISOString().slice(11, 19)} eased: scale=${adapt.scale.toFixed(2)} motion=${adapt.motion}`);
+    return;
+  }
+  const eased = adapt.scale > 1 || adapt.motion;
+  if (eased && adaptState.goodSince && now - adaptState.goodSince >= adaptState.recoverWait && now - adaptState.lastChange > 8000) {
+    adaptState.lastChange = now; adaptState.lastRecover = now; adaptState.goodSince = 0;
+    if (adapt.scale > 1) { adaptState.level = Math.max(0, adaptState.level - 1); adapt.scale = ADAPT_SCALES[adaptState.level]; }
+    else adapt.motion = false;
+    adaptApply();
+    adaptState.notes.push(`${new Date(now).toISOString().slice(11, 19)} recovered: scale=${adapt.scale.toFixed(2)} motion=${adapt.motion}`);
+  }
+}
+window.driftcordAdaptTick = adaptTick;
+window.driftcordAdaptState = () => ({ scale: adapt.scale, motion: adapt.motion, level: adaptState.level, bad: adaptState.bad, recoverWait: adaptState.recoverWait });
+
 /** What the encoder is really doing right now (WebRTC stats of the share sender). */
 let encStats = null, encBusy = false;
 /** The last few minutes of encoder health, one line per sample, for the diagnostics file. */
@@ -323,7 +376,7 @@ async function refreshEncoderStats() {
       }
     }
     encStats = best;
-    if (best && best.share) recordEnc(best);
+    if (best && best.share) { recordEnc(best); try { adaptTick(best); } catch (_) {} }
   } catch (_) { encStats = null; }
   encBusy = false;
 }
