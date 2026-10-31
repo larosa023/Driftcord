@@ -19,6 +19,7 @@
     "allow-set-in-call",
     "allow-open-link",
     "allow-set-badge",
+    "allow-write-diag",
     "allow-capture-sources",
     "allow-capture-start",
     "allow-capture-stop",

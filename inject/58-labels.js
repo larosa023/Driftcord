@@ -159,10 +159,77 @@ const labels = (() => {
     return fixed;
   }
 
+  // ── Diagnostics: what the page really looks like around the quality badges ──
+  function describe(el, depth = 7) {
+    const parts = [];
+    for (let n = el, d = 0; n && n !== document.body && d < depth; n = n.parentElement, d++) {
+      const cls = (typeof n.className === 'string' ? n.className : '').split(/\s+/).filter(Boolean).slice(0, 4).join('.');
+      parts.push(n.tagName.toLowerCase() + (cls ? '.' + cls : '') + (n.id ? '#' + n.id : ''));
+    }
+    return parts.join(' < ');
+  }
+  function snippet(el, max = 700) {
+    let html = el.outerHTML || '';
+    html = html.replace(/\s(href|src|srcset|style)="[^"]*"/g, '');
+    return html.length > max ? html.slice(0, max) + '…' : html;
+  }
+  function diagnostics() {
+    const out = [];
+    out.push('Driftcord ' + VERSION + ' · ' + new Date().toISOString());
+    out.push('badge fixer: ' + JSON.stringify(stats));
+    try { out.push('discordQuality: ' + JSON.stringify(discordQuality.debug())); } catch (e) { out.push('discordQuality: error ' + e); }
+    out.push('encoder: ' + JSON.stringify(encStats));
+    out.push('');
+    out.push('— videos —');
+    for (const v of document.getElementsByTagName('video')) {
+      const r = v.getBoundingClientRect();
+      let q = null; try { q = v.getVideoPlaybackQuality(); } catch (_) {}
+      out.push(`video ${v.videoWidth}x${v.videoHeight} on screen ${Math.round(r.width)}x${Math.round(r.height)} ready=${v.readyState} paused=${v.paused} frames=${q ? q.totalVideoFrames : '?'} src=${v.srcObject ? 'stream' : (v.currentSrc ? 'url' : 'none')} :: ${describe(v, 5)}`);
+    }
+    out.push('');
+    out.push('— text that looks like a quality badge —');
+    const seenBoxes = new Set();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const v = n.nodeValue;
+      if (!v || v.length > 40 || !/(\d{3,4}p\b|\d{1,3}\s*fps\b)/i.test(v)) continue;
+      const p = n.parentElement;
+      if (!p || p.closest('#driftcord-root,script,style')) continue;
+      const box = p.closest('div,span,li,button,a') || p;
+      const outer = box.parentElement || box;
+      if (seenBoxes.has(outer)) continue;
+      seenBoxes.add(outer);
+      out.push(`text ${JSON.stringify(v)} :: ${describe(p)}`);
+      out.push('  html: ' + snippet(outer));
+    }
+    out.push('');
+    out.push('— pills the fixer recognises —');
+    for (const pill of findPills()) {
+      const m = truthFor(pill.anchor);
+      out.push(`${JSON.stringify(pill.res.nodeValue + (pill.fps ? ' | ' + pill.fps.nodeValue : ''))} combined=${pill.combined} truth=${m ? m.h + 'p ' + niceFps(m.fps) : 'none'} :: ${describe(pill.anchor)}`);
+    }
+    return out.join('\n');
+  }
+  let lastDiag = 0;
+  function saveDiagnostics(force) {
+    if (!bridge.available()) return Promise.resolve('');
+    const now = Date.now();
+    if (!force && now - lastDiag < 8000) return Promise.resolve('');
+    lastDiag = now;
+    let text;
+    try { text = diagnostics(); } catch (e) { text = 'diagnostics failed: ' + (e && e.stack || e); }
+    return bridge.invoke('write_diag', { text }).catch((e) => { stats.note += ' (diag write failed: ' + e + ')'; return ''; });
+  }
+
   function start() {
     clearInterval(timer);
-    timer = setInterval(() => { try { scan(); } catch (_) {} }, 1500);
+    timer = setInterval(() => {
+      try { scan(); } catch (e) { stats.note = 'error: ' + (e && e.message || e); }
+      // While a stream is up, keep a fresh snapshot on disk for the dev.
+      if (stats.note !== 'no stream playing' && stats.note !== 'window hidden') saveDiagnostics(false);
+    }, 1500);
   }
   window.driftcordFixLabels = scan;
-  return { start, scan, stats };
+  window.driftcordStreamDiag = diagnostics;
+  return { start, scan, stats, diagnostics, saveDiagnostics };
 })();

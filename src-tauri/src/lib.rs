@@ -239,6 +239,19 @@ fn open_link(app: AppHandle, url: String) -> Result<(), String> {
     open_url_once(&app, &url)
 }
 
+/// Writes a diagnostic snapshot (About → Stream → "Save diagnostics", and
+/// automatically while a stream is up) next to the config file.
+#[tauri::command]
+fn write_diag(app: AppHandle, text: String) -> Result<String, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let file = dir.join("stream-diag.txt");
+    let mut body = text;
+    body.truncate(200_000);
+    std::fs::write(&file, body).map_err(|e| e.to_string())?;
+    Ok(file.to_string_lossy().into_owned())
+}
+
 /// The page is in (or left) a voice/video call.
 #[tauri::command]
 fn set_in_call(app: AppHandle, on: bool) {
@@ -459,6 +472,7 @@ pub fn run() {
             set_memory,
             set_background,
             set_in_call,
+            write_diag,
             set_badge,
             open_link,
             capture_sources,

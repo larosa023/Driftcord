@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.27', date: '2026-10-30', title: 'Stream diagnostics file',
+    items: [
+      ['new', 'While a stream is up, Driftcord keeps a diagnostics snapshot on disk (stream-diag.txt in its config folder) describing the quality badges and videos it sees. About → Stream has a Save diagnostics button too. This is what the dev reads to fix a badge that will not update.'],
+    ],
+  },
+  {
     version: '0.4.26', date: '2026-10-30', title: 'Quality badge, fixed for real',
     items: [
       ['fixed', 'The "720p 30FPS LIVE" badge in the call header now updates to the real quality. Discord splits that badge into separate pieces with LIVE in the same box, which the previous fix did not recognise. The badge text is now found and rewritten piece by piece, whatever the layout.'],
