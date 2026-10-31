@@ -252,6 +252,28 @@ fn write_diag(app: AppHandle, text: String) -> Result<String, String> {
     Ok(file.to_string_lossy().into_owned())
 }
 
+/// Appends one line to net-events.txt next to the config (navigation, pop-up and
+/// download events, for diagnosing links and downloads). Capped at ~100 KB.
+fn log_event(app: &AppHandle, line: &str) {
+    use std::io::Write;
+    let Ok(dir) = app.path().app_config_dir() else { return };
+    let _ = std::fs::create_dir_all(&dir);
+    let file = dir.join("net-events.txt");
+    if std::fs::metadata(&file).map(|m| m.len() > 100_000).unwrap_or(false) {
+        let _ = std::fs::remove_file(&file);
+    }
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let short: String = line.chars().take(600).collect();
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&file) {
+        let _ = writeln!(f, "{secs} {short}");
+    }
+}
+
+#[tauri::command]
+fn log_page_event(app: AppHandle, line: String) {
+    log_event(&app, &format!("page: {line}"));
+}
+
 /// Show a finished download in its folder (the file must be in Downloads).
 #[tauri::command]
 fn reveal_download(app: AppHandle, name: String) -> Result<(), String> {
@@ -500,6 +522,7 @@ pub fn run() {
             set_background,
             set_in_call,
             reveal_download,
+            log_page_event,
             write_diag,
             set_badge,
             open_link,
@@ -567,7 +590,8 @@ pub fn run() {
                 // the Downloads folder; the page then says where it went.
                 .on_download(|webview, event| {
                     match event {
-                        DownloadEvent::Requested { destination, .. } => {
+                        DownloadEvent::Requested { url, destination } => {
+                            log_event(&webview.app_handle(), &format!("download requested: {url} -> {}", destination.display()));
                             if let Ok(dir) = webview.app_handle().path().download_dir() {
                                 let name = destination
                                     .file_name()
@@ -576,7 +600,8 @@ pub fn run() {
                                 *destination = unique_download_path(&dir, &name);
                             }
                         }
-                        DownloadEvent::Finished { path, success, .. } => {
+                        DownloadEvent::Finished { url, path, success } => {
+                            log_event(&webview.app_handle(), &format!("download finished: {url} ok={success} path={path:?}"));
                             let name = path
                                 .as_ref()
                                 .and_then(|p| p.file_name())
@@ -594,6 +619,7 @@ pub fn run() {
                     true
                 })
                 .on_navigation(move |url| {
+                    log_event(&nav_handle, &format!("navigate: {url} allowed={}", is_allowed(url)));
                     if is_allowed(url) {
                         true
                     } else {
@@ -603,6 +629,7 @@ pub fn run() {
                 })
                 // Links with target=_blank / window.open: open in the default browser.
                 .on_new_window(move |url, _features| {
+                    log_event(&popup_handle, &format!("new window: {url}"));
                     open_external(&popup_handle, &url);
                     NewWindowResponse::Deny
                 })

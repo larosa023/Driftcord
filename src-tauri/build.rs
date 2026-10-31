@@ -10,6 +10,7 @@ const COMMANDS: &[&str] = &[
     "set_background",
     "set_in_call",
     "reveal_download",
+    "log_page_event",
     "write_diag",
     "set_badge",
     "open_link",

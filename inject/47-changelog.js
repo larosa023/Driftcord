@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.32', date: '2026-10-30', title: 'Download diagnostics',
+    items: [
+      ['new', 'Driftcord now records what Discord does when you click a download or attachment (net-events.txt in its config folder), so a download that does nothing can be traced.'],
+      ['fixed', 'A stray "null" line in About → Links.'],
+    ],
+  },
+  {
     version: '0.4.31', date: '2026-10-30', title: 'Downloads work',
     items: [
       ['fixed', 'Downloading attachments (like message.txt) now works: files save to your Downloads folder, and a notice offers "Show in folder".'],

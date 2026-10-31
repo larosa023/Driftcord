@@ -20,6 +20,7 @@
     "allow-open-link",
     "allow-set-badge",
     "allow-reveal-download",
+    "allow-log-page-event",
     "allow-write-diag",
     "allow-capture-sources",
     "allow-capture-start",

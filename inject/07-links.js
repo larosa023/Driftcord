@@ -99,12 +99,12 @@ window.addEventListener('auxclick', watchClick, true);
 function linkDebugCard() {
   const box = h('div', {});
   const draw = () => {
-    box.replaceChildren(
+    box.replaceChildren(...[
       h('div', { class: 'row' }, h('span', { class: 'label' }, 'Link clicks',
         h('span', { class: 'desc' }, `${linkStats.opened} opened by Driftcord · ${linkStats.rescued} of them rescued after Discord did nothing`)),
         h('b', {}, String(linkStats.clicks))),
       linkStats.failed ? h('p', { class: 'hint' }, `Couldn't open ${linkStats.failed}: ${linkStats.last}`) : null,
-    );
+    ].filter(Boolean));
   };
   draw();
   const timer = setInterval(() => { if (!box.isConnected) clearInterval(timer); else draw(); }, 2000);
@@ -122,3 +122,30 @@ window.__driftcordDownloaded = (name, ok) => {
     actions: [{ label: 'Show in folder', primary: true, run: () => bridge.invoke('reveal_download', { name }).catch(() => {}) }],
   });
 };
+
+
+// ── What a click on a download/attachment really does (diagnostics) ──────────
+// Logged to net-events.txt by the app, next to its own navigation/download events.
+(function watchDownloads() {
+  const log = (line) => { if (bridge.available()) bridge.invoke('log_page_event', { line }).catch(() => {}); };
+  const describe = (a) => `href=${(a.getAttribute('href') || '').slice(0, 220)} target=${a.target || '-'} download=${a.hasAttribute('download') ? JSON.stringify(a.getAttribute('download')) : '-'} class=${(a.className && a.className.baseVal === undefined ? a.className : '').toString().slice(0, 80)}`;
+  window.addEventListener('click', (e) => {
+    const path = e.composedPath ? e.composedPath() : [];
+    const t = path[0] || e.target;
+    const el = t instanceof Element ? t : null;
+    const a = el && el.closest('a');
+    const btn = el && el.closest('[role="button"], button');
+    const inAttach = el && el.closest('[class*="attachment"], [class*="fileAttachment"], [class*="textFile"], [class*="download"]');
+    if (a && (a.hasAttribute('download') || inAttach || /discordapp|discord\.com/.test(a.href || ''))) {
+      if (/attachments|download|\.txt/i.test((a.href || '') + (a.getAttribute('download') || '') + (inAttach ? 'download' : ''))) log('click anchor ' + describe(a));
+    } else if (inAttach && btn) {
+      log('click button label=' + JSON.stringify(btn.getAttribute('aria-label') || btn.textContent.slice(0, 30)) + ' in ' + (inAttach.className || '').toString().slice(0, 80));
+    }
+  }, true);
+  // Programmatic anchor clicks (how a page often starts a blob download).
+  const realClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (this.hasAttribute('download') || /^blob:/.test(this.href)) log('programmatic anchor click ' + describe(this));
+    return realClick.apply(this, arguments);
+  };
+})();
