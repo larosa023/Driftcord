@@ -179,6 +179,7 @@ const labels = (() => {
     out.push('badge fixer: ' + JSON.stringify(stats));
     try { out.push('discordQuality: ' + JSON.stringify(discordQuality.debug())); } catch (e) { out.push('discordQuality: error ' + e); }
     out.push('encoder: ' + JSON.stringify(encStats));
+    try { out.push('store census: ' + discordQuality.census()); } catch (e) { out.push('store census: error ' + e); }
     out.push('');
     out.push('— videos —');
     for (const v of document.getElementsByTagName('video')) {

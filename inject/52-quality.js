@@ -16,7 +16,7 @@
 
 const discordQuality = (() => {
   const state = {
-    wreq: false, store: false, userStore: false, engine: false, conn: false, method: false,
+    wreq: false, store: false, userStore: false, engine: false, conn: false, method: false, how: '',
     params: null, applied: null, asserts: 0, errors: [],
   };
   let stores = null;      // { media, user }
@@ -35,17 +35,36 @@ const discordQuality = (() => {
     return wreq && wreq.c ? wreq : null;
   }
 
-  /** Discord's flux stores by name, found once through the module cache. */
-  function findStores() {
-    if (stores) return stores;
+  /** What a flux store calls itself: getName() on older builds,
+   *  constructor.displayName on current ones (what Vencord matches on). */
+  function storeName(v) {
+    if (!v || (typeof v !== 'object' && typeof v !== 'function')) return null;
+    try { if (typeof v.getName === 'function') { const n = v.getName(); if (typeof n === 'string') return n; } } catch (_) {}
+    try { const c = v.constructor; if (c && typeof c.displayName === 'string') return c.displayName; } catch (_) {}
+    return null;
+  }
+
+  /** Vencord / Equicord expose their module finder; use it when present. */
+  function storesViaMod() {
+    const V = window.Vencord || window.Equicord;
+    const W = V && V.Webpack;
+    if (!W || typeof W.findStore !== 'function') return null;
+    let media = null, user = null;
+    try { media = W.findStore('MediaEngineStore'); } catch (e) { fail('mod findStore', e); }
+    try { user = (W.Common && W.Common.UserStore) || W.findStore('UserStore'); } catch (_) {}
+    if (!media) return null;
+    state.how = (window.Equicord ? 'Equicord' : 'Vencord') + ' webpack';
+    return { media, user };
+  }
+
+  /** Own scan of the webpack module cache (no client mod, or it had no answer). */
+  function storesViaScan() {
     const wreq = webpackRequire();
     if (!wreq) return null;
     const want = { MediaEngineStore: null, UserStore: null };
     let left = 2;
     const check = (v) => {
-      if (!v || (typeof v !== 'object' && typeof v !== 'function')) return;
-      let name;
-      try { name = typeof v.getName === 'function' ? v.getName() : null; } catch (_) { return; }
+      const name = storeName(v);
       if (name && name in want && !want[name]) { want[name] = v; left--; }
     };
     for (const id in wreq.c) {
@@ -62,11 +81,43 @@ const discordQuality = (() => {
       } catch (_) { /* some exports throw on access */ }
       if (!left) break;
     }
-    state.store = !!want.MediaEngineStore;
-    state.userStore = !!want.UserStore;
     if (!want.MediaEngineStore) return null;
-    stores = { media: want.MediaEngineStore, user: want.UserStore };
+    state.how = 'module scan';
+    return { media: want.MediaEngineStore, user: want.UserStore };
+  }
+
+  let lastLookup = 0;
+  /** Discord's flux stores by name. A failed lookup is retried at most every 10 s. */
+  function findStores() {
+    if (stores) return stores;
+    const now = Date.now();
+    if (now - lastLookup < 10000) return null;
+    lastLookup = now;
+    const found = storesViaMod() || storesViaScan();
+    state.store = !!(found && found.media);
+    state.userStore = !!(found && found.user);
+    if (!found) return null;
+    stores = found;
     return stores;
+  }
+
+  /** For diagnostics: the store names visible in the module cache. */
+  function storeCensus(limit = 40) {
+    const wreq = webpackRequire();
+    if (!wreq) return 'no webpack';
+    const names = new Set();
+    for (const id in wreq.c) {
+      let exp;
+      try { exp = wreq.c[id].exports; } catch (_) { continue; }
+      if (!exp || exp === window || (typeof exp !== 'object' && typeof exp !== 'function')) continue;
+      try {
+        const n = storeName(exp); if (n) names.add(n);
+        for (const k of Object.keys(exp)) { let v; try { v = exp[k]; } catch (_) { continue; } const m = storeName(v); if (m) names.add(m); }
+      } catch (_) {}
+    }
+    const all = [...names];
+    const hit = all.filter((n) => /media|stream|user|rtc|voice/i.test(n));
+    return `${all.length} stores; relevant: ${hit.slice(0, limit).join(', ')}`;
   }
 
   function engine() {
@@ -214,9 +265,12 @@ const discordQuality = (() => {
     onShareEnd() { stream = null; clearInterval(ticker); ticker = 0; },
     assert() { try { assert(); } catch (e) { fail('assert', e); } },
     debug() { return { ...state, pick: pickedQuality, live: !!stream }; },
+    census() { try { return storeCensus(); } catch (e) { return 'census failed: ' + e; } },
   };
 })();
 window.driftcordStreamDebug = () => discordQuality.debug();
+/** Dev console: try to reach Discord's internals now and report. */
+window.driftcordStreamProbe = () => { discordQuality.prepare(); return { ...discordQuality.debug(), census: discordQuality.census() }; };
 
 /** About → Stream card: what Driftcord could reach on Discord's side. */
 /** What the encoder is really doing right now (WebRTC stats of the share sender). */
@@ -233,14 +287,18 @@ async function refreshEncoderStats() {
         if (!tr || tr.kind !== 'video' || tr.readyState !== 'live') continue;
         const isShare = shareTracks.has(tr);
         const report = await sender.getStats();
-        let pair = null;
-        report.forEach((r) => { if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded') && r.availableOutgoingBitrate) pair = r; });
+        let pair = null; const codecs = {};
+        report.forEach((r) => {
+          if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded') && r.availableOutgoingBitrate) pair = r;
+          if (r.type === 'codec' && r.mimeType) codecs[r.id] = r.mimeType.replace(/^video\//i, '');
+        });
         report.forEach((r) => {
           if (r.type !== 'outbound-rtp' || r.kind !== 'video' || !r.frameWidth) return;
           const cand = { w: r.frameWidth, h: r.frameHeight, fps: Math.round(r.framesPerSecond || 0),
             why: r.qualityLimitationReason || 'none', changes: r.qualityLimitationResolutionChanges || 0,
             target: r.targetBitrate ? Math.round(r.targetBitrate / 1000) : 0,
-            est: pair ? Math.round(pair.availableOutgoingBitrate / 1000) : 0, share: isShare, rid: r.rid || '' };
+            est: pair ? Math.round(pair.availableOutgoingBitrate / 1000) : 0, share: isShare, rid: r.rid || '',
+            codec: codecs[r.codecId] || '', encoder: r.encoderImplementation || '', pli: r.pliCount || 0, nack: r.nackCount || 0 };
           if (!best || (cand.share && !best.share) || (cand.share === best.share && cand.w > best.w)) best = cand;
         });
       }
@@ -258,7 +316,7 @@ function streamDebugCard() {
     const row = (label, val, desc) => h('div', { class: 'row' }, h('span', { class: 'label' }, label, desc ? h('span', { class: 'desc' }, desc) : null), h('b', {}, val));
     box.replaceChildren(
       row('Sharing now', d.live ? `${d.pick.w}x${d.pick.h} @ ${d.pick.fps}` : 'no'),
-      row('Discord internals reached', yes(d.store), 'MediaEngineStore via webpack'),
+      row('Discord internals reached', yes(d.store), d.how ? 'MediaEngineStore via ' + d.how : 'MediaEngineStore via webpack'),
       row('Stream connection found', yes(d.conn), d.live ? (d.userStore ? 'by your user id' : 'UserStore not found; matched by track') : 'Only while you\'re live'),
       row('Quality method patched', yes(d.method), 'getDefaultGoliveQuality'),
       row('Discord sends', d.params ? `${d.params.res} @ ${d.params.fps}` : '—', 'videoStreamParameters'),
@@ -267,6 +325,7 @@ function streamDebugCard() {
       row('Held back by', encStats ? ({ none: 'nothing', bandwidth: 'bandwidth estimate', cpu: 'CPU', other: 'other' }[encStats.why] || encStats.why) : '—', encStats && encStats.why === 'bandwidth' ? 'The connection says it can only carry about ' + encStats.est + ' kbps' : ''),
       row('Badge fixer', labels.stats.note, `${labels.stats.videos} video(s), ${labels.stats.pills} badge(s) found, ${labels.stats.fixed} corrected${labels.stats.sample ? ' · not matched: ' + labels.stats.sample : ''}`),
       row('Target bitrate', encStats ? encStats.target + ' kbps' : '—', encStats && encStats.est ? 'Estimate ' + encStats.est + ' kbps' : ''),
+      row('Codec / encoder', encStats ? (encStats.codec || '?') + (encStats.encoder ? ' · ' + encStats.encoder : '') : '—'),
       d.errors.length ? h('p', { class: 'hint' }, 'Errors: ' + d.errors.join(' · ')) : null,
       h('p', { class: 'hint' }, 'If a badge is wrong, press Save diagnostics and send the file it names to the dev.'),
       h('button', { class: 'btn', onclick: (e) => {

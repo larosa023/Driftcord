@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.28', date: '2026-10-30', title: 'Stream quality: the real fix',
+    items: [
+      ['fixed', 'Driftcord could not reach Discord\'s stream internals on current Discord builds, so Discord kept believing a share was 720p30 and labelled it that way for everyone, even though the video itself was sent at full quality. The lookup now uses the client mod\'s own module finder (Vencord/Equicord) and matches stores the way current Discord names them.'],
+      ['new', 'About → Stream shows the video codec and encoder in use, and the diagnostics file lists the Discord stores it can see.'],
+    ],
+  },
+  {
     version: '0.4.27', date: '2026-10-30', title: 'Stream diagnostics file',
     items: [
       ['new', 'While a stream is up, Driftcord keeps a diagnostics snapshot on disk (stream-diag.txt in its config folder) describing the quality badges and videos it sees. About → Stream has a Save diagnostics button too. This is what the dev reads to fix a badge that will not update.'],
