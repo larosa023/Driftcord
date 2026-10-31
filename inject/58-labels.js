@@ -238,7 +238,18 @@ const labels = (() => {
       video: { contentType: ct, width: 2560, height: 1440, framerate: 60, bitrate: 8000000 } })
       .then((r) => `${name}: ${r.supported ? (r.powerEfficient ? 'hardware' : 'software only') : 'no'}`)
       .catch((e) => `${name}: error ${e && e.message || e}`)))
-      .then((lines) => { capProbe.text = lines.join(' · '); });
+      .then(async (lines) => {
+        // WebCodecs asks the GPU encoder directly: the definitive hardware yes/no.
+        if (window.VideoEncoder && VideoEncoder.isConfigSupported) {
+          for (const [name, codec] of [['H264 baseline', 'avc1.42E01F'], ['H264 high', 'avc1.640033'], ['VP9', 'vp09.00.40.08'], ['AV1', 'av01.0.12M.08']]) {
+            try {
+              const hw = await VideoEncoder.isConfigSupported({ codec, width: 2560, height: 1440, framerate: 60, bitrate: 8e6, hardwareAcceleration: 'prefer-hardware' });
+              lines.push(`WebCodecs ${name} hardware: ${hw.supported ? 'yes' : 'no'}`);
+            } catch (e) { lines.push(`WebCodecs ${name}: error ${e && e.message || e}`); }
+          }
+        } else lines.push('WebCodecs VideoEncoder: not available');
+        capProbe.text = lines.join(' · ');
+      });
   }
 
   let lastDiag = 0;

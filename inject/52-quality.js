@@ -315,7 +315,7 @@ function streamDebugCard() {
     const d = discordQuality.debug();
     const yes = (b) => b ? 'yes' : 'no';
     const row = (label, val, desc) => h('div', { class: 'row' }, h('span', { class: 'label' }, label, desc ? h('span', { class: 'desc' }, desc) : null), h('b', {}, val));
-    box.replaceChildren(
+    box.replaceChildren(...[
       row('Sharing now', d.live ? `${d.pick.w}x${d.pick.h} @ ${d.pick.fps}` : 'no'),
       row('Discord internals reached', yes(d.store), d.how ? 'MediaEngineStore via ' + d.how : 'MediaEngineStore via webpack'),
       row('Stream connection found', yes(d.conn), d.live ? (d.userStore ? 'by your user id' : 'UserStore not found; matched by track') : 'Only while you\'re live'),
@@ -333,7 +333,7 @@ function streamDebugCard() {
         const b = e.currentTarget; b.textContent = 'Saving…';
         labels.saveDiagnostics(true).then((path) => { b.textContent = path ? 'Saved: ' + path : 'Could not save'; });
       } }, 'Save diagnostics'),
-    );
+    ].filter(Boolean));
   };
   draw();
   const timer = setInterval(() => {

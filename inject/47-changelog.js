@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.30', date: '2026-10-30', title: 'Hardware encoder check',
+    items: [
+      ['fixed', 'Removed a stray "null" line in About → Stream.'],
+      ['new', 'The diagnostics file now asks the graphics card directly whether it can hardware-encode H264/VP9/AV1 at 1440p60.'],
+    ],
+  },
+  {
     version: '0.4.29', date: '2026-10-30', title: 'Steadier voice rings',
     items: [
       ['fixed', 'Speaking rings no longer flicker: they still turn on instantly (40 ms) but fade off gently (180 ms), so brief gaps in voice detection do not blink them.'],
