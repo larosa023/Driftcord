@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.38', date: '2026-10-31', title: 'Clearer stream settings',
+    items: [
+      ['fixed', 'Save diagnostics now keeps showing where the file was saved instead of resetting a moment later.'],
+      ['improved', 'The CPU-encoding notice now knows whether Boosted graphics is already on: it offers a restart only when that would change something, and otherwise says so plainly.'],
+    ],
+  },
+  {
     version: '0.4.37', date: '2026-10-31', title: 'Text file downloads',
     items: [
       ['fixed', 'Text-file attachments (like message.txt) now save to Downloads when you click the file name or choose Download from the "…" menu, even if Discord\'s own download does nothing.'],

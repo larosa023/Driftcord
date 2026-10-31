@@ -381,19 +381,30 @@ async function refreshEncoderStats() {
   encBusy = false;
 }
 
-/** Offer Boosted graphics when video is being encoded on the CPU (OpenH264). */
+/** Software encoding: offer Boosted graphics, or say what the result was. */
+let appInfo = null;          // get_info, refreshed when the Stream card opens
+let diagSaveMsg = '';        // survives the card's redraws
+
 function softEncodeNotice() {
   if (!encStats || !/openh264/i.test(encStats.encoder || '') || !bridge.available()) return null;
+  const restartBtn = (label) => h('button', { class: 'btn primary', onclick: (e) => {
+    e.currentTarget.disabled = true;
+    bridge.invoke('set_memory', { gpuBoost: true }).then(() => bridge.invoke('restart_app')).catch(() => {});
+  } }, label);
+  if (appInfo && appInfo.gpuBoostActive) {
+    return h('p', { class: 'hint' }, 'Boosted graphics is on, but Windows still hands video encoding to the CPU on this PC. That is fine while the frame rate above holds. Turn Boosted graphics off in Clean → Performance if you don\'t need it.');
+  }
+  if (appInfo && appInfo.gpuBoost) {
+    return h('div', { class: 'notice' }, h('span', { class: 'grow' }, 'Boosted graphics is set but not applied yet. Restart Driftcord to apply it.'), restartBtn('Restart now'));
+  }
   return h('div', { class: 'notice' },
     h('span', { class: 'grow' }, 'Your stream is being encoded on the CPU. Boosted graphics can let Windows use your graphics card instead (takes effect after a restart; not guaranteed on every PC).'),
-    h('button', { class: 'btn primary', onclick: (e) => {
-      e.currentTarget.disabled = true;
-      bridge.invoke('set_memory', { gpuBoost: true }).then(() => bridge.invoke('restart_app')).catch(() => {});
-    } }, 'Try it & restart'));
+    restartBtn('Try it & restart'));
 }
 
 function streamDebugCard() {
   const box = h('div', {});
+  if (bridge.available()) bridge.invoke('get_info').then((i) => { appInfo = i; }).catch(() => {});
   const draw = () => {
     const d = discordQuality.debug();
     const yes = (b) => b ? 'yes' : 'no';
@@ -413,10 +424,11 @@ function streamDebugCard() {
       softEncodeNotice(),
       d.errors.length ? h('p', { class: 'hint' }, 'Errors: ' + d.errors.join(' · ')) : null,
       h('p', { class: 'hint' }, 'If a badge is wrong, press Save diagnostics and send the file it names to the dev.'),
-      h('button', { class: 'btn', onclick: (e) => {
-        const b = e.currentTarget; b.textContent = 'Saving…';
-        labels.saveDiagnostics(true).then((path) => { b.textContent = path ? 'Saved: ' + path : 'Could not save'; });
+      h('button', { class: 'btn', onclick: () => {
+        diagSaveMsg = 'Saving…'; draw();
+        labels.saveDiagnostics(true).then((path) => { diagSaveMsg = path ? 'Saved to ' + path : 'Could not save'; draw(); });
       } }, 'Save diagnostics'),
+      diagSaveMsg ? h('p', { class: 'hint' }, diagSaveMsg + (diagSaveMsg.startsWith('Saved') ? ' (also saved automatically every few seconds while you stream)' : '')) : null,
     ].filter(Boolean));
   };
   draw();
