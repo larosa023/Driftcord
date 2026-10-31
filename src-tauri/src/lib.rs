@@ -554,13 +554,13 @@ async fn check_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> Resu
         .await
         .map_err(|e| e.to_string())?;
     let info = update.as_ref().map(|u| UpdateInfo { version: u.version.clone(), notes: u.body.clone() });
-    *pending.0.lock().unwrap() = update;
+    *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = update;
     Ok(info)
 }
 
 #[tauri::command]
 async fn install_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> Result<(), String> {
-    let update = pending.0.lock().unwrap().take().ok_or("no update pending")?;
+    let update = pending.0.lock().unwrap_or_else(|e| e.into_inner()).take().ok_or("no update pending")?;
     update
         .download_and_install(|_, _| {}, || {})
         .await

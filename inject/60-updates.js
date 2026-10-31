@@ -45,7 +45,11 @@ async function installUpdate(el) {
   } catch (e) {
     if (updateToast) updateToast.close();
     updateToast = null;
-    toast('Update failed', { sub: errText(e) });
+    pendingUpdate = null;
+    toast('Update failed', {
+      sub: errText(e), duration: 12000,
+      actions: [{ label: 'Try again', primary: true, run: async () => { const u = await checkForUpdates(false); if (u) installUpdate(); } }],
+    });
   }
 }
 
