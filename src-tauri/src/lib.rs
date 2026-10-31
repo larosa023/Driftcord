@@ -16,7 +16,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    webview::{NewWindowResponse, PermissionKind, PermissionResponse},
+    webview::{DownloadEvent, NewWindowResponse, PermissionKind, PermissionResponse},
     AppHandle, Manager, State, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_opener::OpenerExt;
@@ -252,6 +252,33 @@ fn write_diag(app: AppHandle, text: String) -> Result<String, String> {
     Ok(file.to_string_lossy().into_owned())
 }
 
+/// Show a finished download in its folder (the file must be in Downloads).
+#[tauri::command]
+fn reveal_download(app: AppHandle, name: String) -> Result<(), String> {
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let file = std::path::Path::new(&name).file_name().ok_or("bad name")?;
+    let path = dir.join(file);
+    if !path.exists() {
+        return Err("file not found".into());
+    }
+    app.opener().reveal_item_in_dir(&path).map_err(|e| e.to_string())
+}
+
+/// A free file name in `dir`: "report.txt", then "report (1).txt", …
+fn unique_download_path(dir: &std::path::Path, name: &std::ffi::OsStr) -> std::path::PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let p = std::path::Path::new(name);
+    let stem = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "download".into());
+    let ext = p.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    (1..1000)
+        .map(|n| dir.join(format!("{stem} ({n}){ext}")))
+        .find(|c| !c.exists())
+        .unwrap_or(first)
+}
+
 /// The page is in (or left) a voice/video call.
 #[tauri::command]
 fn set_in_call(app: AppHandle, on: bool) {
@@ -472,6 +499,7 @@ pub fn run() {
             set_memory,
             set_background,
             set_in_call,
+            reveal_download,
             write_diag,
             set_badge,
             open_link,
@@ -535,6 +563,36 @@ pub fn run() {
                     }
                 })
                 // Keep the main window on Discord; send everything else to the browser.
+                // File downloads (attachments, "Download" in the message menu) save to
+                // the Downloads folder; the page then says where it went.
+                .on_download(|webview, event| {
+                    match event {
+                        DownloadEvent::Requested { destination, .. } => {
+                            if let Ok(dir) = webview.app_handle().path().download_dir() {
+                                let name = destination
+                                    .file_name()
+                                    .map(|n| n.to_os_string())
+                                    .unwrap_or_else(|| "download".into());
+                                *destination = unique_download_path(&dir, &name);
+                            }
+                        }
+                        DownloadEvent::Finished { path, success, .. } => {
+                            let name = path
+                                .as_ref()
+                                .and_then(|p| p.file_name())
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_default();
+                            let js = format!(
+                                "window.__driftcordDownloaded && window.__driftcordDownloaded({}, {});",
+                                serde_json::to_string(&name).unwrap_or_else(|_| "\"\"".into()),
+                                success
+                            );
+                            let _ = webview.eval(&js);
+                        }
+                        _ => {}
+                    }
+                    true
+                })
                 .on_navigation(move |url| {
                     if is_allowed(url) {
                         true

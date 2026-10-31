@@ -9,6 +9,7 @@ const COMMANDS: &[&str] = &[
     "set_memory",
     "set_background",
     "set_in_call",
+    "reveal_download",
     "write_diag",
     "set_badge",
     "open_link",

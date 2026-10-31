@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.31', date: '2026-10-30', title: 'Downloads work',
+    items: [
+      ['fixed', 'Downloading attachments (like message.txt) now works: files save to your Downloads folder, and a notice offers "Show in folder".'],
+    ],
+  },
+  {
     version: '0.4.30', date: '2026-10-30', title: 'Hardware encoder check',
     items: [
       ['fixed', 'Removed a stray "null" line in About → Stream.'],

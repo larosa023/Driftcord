@@ -110,3 +110,15 @@ function linkDebugCard() {
   const timer = setInterval(() => { if (!box.isConnected) clearInterval(timer); else draw(); }, 2000);
   return box;
 }
+
+
+// ── Downloads ────────────────────────────────────────────────────────────────
+// The app saves downloads to the Downloads folder and calls this when done.
+window.__driftcordDownloaded = (name, ok) => {
+  if (!ok || !name) { toast('Download failed', { sub: 'Discord could not save the file.', duration: 6000 }); return; }
+  toast('Saved to Downloads', {
+    sub: name,
+    duration: 9000,
+    actions: [{ label: 'Show in folder', primary: true, run: () => bridge.invoke('reveal_download', { name }).catch(() => {}) }],
+  });
+};
