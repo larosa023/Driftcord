@@ -1,6 +1,6 @@
 [package]
 name = "driftcord"
-version = "0.4.40"
+version = "0.4.41"
 description = "A lightweight, debloated, themeable Discord desktop shell"
 edition = "2021"
 rust-version = "1.90"
@@ -27,6 +27,7 @@ base64 = "0.22"
 # Same HTTP stack the updater already ships, so mods add no extra weight.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "system-proxy"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tauri-plugin-autostart = "2"
 
 [target.'cfg(windows)'.dependencies]
 # Native screen share: Windows Graphics Capture, WASAPI process loopback audio,

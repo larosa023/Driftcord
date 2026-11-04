@@ -11,6 +11,8 @@ const COMMANDS: &[&str] = &[
     "set_in_call",
     "reveal_download",
     "save_url",
+    "get_autostart",
+    "set_autostart",
     "read_net_events",
     "log_page_event",
     "write_diag",

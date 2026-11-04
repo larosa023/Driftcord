@@ -170,6 +170,20 @@ function createPanel() {
       h('span', { class: 'switch' }, input));
   };
 
+  /** "Start with Windows": lives in Windows, not in our settings, so it asks the app. */
+  const startupRow = () => {
+    const input = h('input', { type: 'checkbox', role: 'switch', disabled: true,
+      onchange: async (e) => {
+        const want = e.target.checked;
+        try { e.target.checked = await bridge.invoke('set_autostart', { on: want }); }
+        catch (_) { e.target.checked = !want; toast('Could not change start-up setting', { duration: 5000 }); }
+      } });
+    if (bridge.available()) bridge.invoke('get_autostart').then((on) => { input.checked = !!on; input.disabled = false; }).catch(() => {});
+    return h('label', { class: 'row' },
+      h('span', { class: 'label' }, 'Start with Windows', h('span', { class: 'desc' }, 'Opens quietly in the tray when you sign in')),
+      h('span', { class: 'switch' }, input));
+  };
+
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
   // ── Tabs
@@ -274,7 +288,7 @@ function createPanel() {
           'Load a full plugin suite on top of Driftcord. After restarting, manage plugins in Discord\'s User Settings under the mod\'s own section.'),
         box,
         h('p', { class: 'hint', style: 'margin-top:14px' },
-          'Vencord and Equicord are separate open-source projects (GPL-3.0). Driftcord downloads their official web builds from GitHub and refreshes them on every launch. Report plugin bugs to those projects.'),
+          'Vencord and Equicord are separate open-source projects (GPL-3.0). Driftcord downloads their official web builds from GitHub and refreshes them on every launch and every few hours while Driftcord is open (the new copy loads on your next restart). Report plugin bugs to those projects.'),
       ];
     },
 
@@ -296,6 +310,7 @@ function createPanel() {
           h('span', { class: 'desc' }, 'Updates download in the background and install on restart')), installBtn || checkBtn),
         upd,
         toggleRow('updates.auto', 'Check automatically', 'On launch, every few hours, and when you come back to the app'),
+        startupRow(),
         h('h2', {}, 'Stream'),
         streamDebugCard(),
         h('h2', {}, 'Links'),
@@ -456,12 +471,16 @@ function createPanel() {
       return;
     }
     const draw = (busy, error) => {
+      const ago = (t) => {
+        const s = Math.max(0, Date.now() / 1000 - t), d = Math.floor(s / 86400), hr = Math.floor(s / 3600);
+        return 'refreshed ' + (s < 3600 ? 'just now' : hr < 24 ? hr + ' h ago' : d + (d === 1 ? ' day ago' : ' days ago'));
+      };
       const kb = (n) => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
       const options = [
         { id: null, name: 'None', sub: 'Just Driftcord. Fastest and lightest.' },
         ...info.mods.map((m) => ({ id: m.id, name: m.name,
           sub: (m.id === 'vencord' ? 'The original. 100+ well-maintained plugins.' : 'Vencord fork with 300+ extra plugins.') +
-            (m.installed ? ` · ${kb(m.size)} downloaded` : ''),
+            (m.installed ? ` · ${kb(m.size)} · ${ago(m.updated)}` : ''),
           loaded: info.loadedMod === m.id })),
       ];
       const cards = h('div', { class: 'choices' }, options.map((o) => h('button', {

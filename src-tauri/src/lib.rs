@@ -171,6 +171,21 @@ struct Active {
     native_titlebar: bool,
 }
 
+/// "Start with Windows" (opens quietly in the tray).
+#[tauri::command]
+fn get_autostart(app: AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_autostart(app: AppHandle, on: bool) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let m = app.autolaunch();
+    if on { m.enable() } else { m.disable() }.map_err(|e| e.to_string())?;
+    Ok(m.is_enabled().unwrap_or(on))
+}
+
 /// The page reports its theme background so the next launch opens in that
 /// color immediately instead of flashing white while Discord loads.
 #[tauri::command]
@@ -331,7 +346,25 @@ fn read_net_events(app: AppHandle) -> String {
     let text = std::fs::read_to_string(dir.join("net-events.txt")).unwrap_or_default();
     let start = text.len().saturating_sub(6000);
     let start = (start..text.len()).find(|i| text.is_char_boundary(*i)).unwrap_or(text.len());
-    text[start..].to_string()
+    strip_queries(&text[start..])
+}
+
+/// Drops everything after a `?` up to the next space, so signed links (attachment
+/// tokens, session ids) never reach the log or a problem report.
+fn strip_queries(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut skipping = false;
+    for c in line.chars() {
+        if skipping {
+            if c.is_whitespace() { skipping = false; out.push(c); }
+        } else if c == '?' {
+            skipping = true;
+            out.push_str("?…");
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Appends one line to net-events.txt next to the config (navigation, pop-up and
@@ -345,7 +378,7 @@ fn log_event(app: &AppHandle, line: &str) {
         let _ = std::fs::remove_file(&file);
     }
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    let short: String = line.chars().take(600).collect();
+    let short: String = strip_queries(line).chars().take(600).collect();
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&file) {
         let _ = writeln!(f, "{secs} {short}");
     }
@@ -577,6 +610,10 @@ async fn mod_fetch(req: mods::FetchRequest) -> Result<mods::FetchResponse, Strin
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         // A second launch just focuses the running window.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main(app);
@@ -605,6 +642,8 @@ pub fn run() {
             set_in_call,
             reveal_download,
             save_url,
+            get_autostart,
+            set_autostart,
             read_net_events,
             log_page_event,
             write_diag,
@@ -729,6 +768,10 @@ pub fn run() {
                 .build()?;
             // Belt and braces: whatever was saved before, the frame follows the setting.
             let _ = main.set_decorations(cfg.native_titlebar);
+            // Started by Windows at sign-in: stay in the tray until opened.
+            if std::env::args().any(|a| a == "--minimized") {
+                let _ = main.hide();
+            }
 
             // Refresh the enabled mod in the background (the new copy loads next
             // start). Wait until Discord has finished loading, and skip it if the
@@ -736,12 +779,18 @@ pub fn run() {
             if let Some(id) = loaded_mod {
                 let h = handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    let fresh = mods::status(&h).iter().any(|m| {
-                        m.id == id.as_str() && m.installed && mods::age_secs(m.updated) < 12 * 3600
-                    });
-                    if !fresh {
-                        let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(std::time::Duration::from_secs(45))).await;
-                        let _ = mods::download(&h, &id).await;
+                    // First check shortly after Discord loads, then every few hours
+                    // while the app stays open. A copy under 12 hours old is left alone.
+                    let mut wait = 45u64;
+                    loop {
+                        let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_secs(wait))).await;
+                        wait = 3 * 3600;
+                        let fresh = mods::status(&h).iter().any(|m| {
+                            m.id == id.as_str() && m.installed && mods::age_secs(m.updated) < 12 * 3600
+                        });
+                        if !fresh {
+                            let _ = mods::download(&h, &id).await;
+                        }
                     }
                 });
             }
@@ -834,4 +883,18 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Driftcord");
+}
+
+#[cfg(test)]
+mod log_tests {
+    use super::strip_queries;
+
+    #[test]
+    fn signed_links_lose_their_tokens() {
+        let l = "page: click anchor href=https://cdn.discordapp.com/attachments/1/2/a.txt?ex=1&hm=secret target=_blank";
+        let out = strip_queries(l);
+        assert!(!out.contains("secret") && !out.contains("ex=1"));
+        assert!(out.contains("a.txt?…") && out.contains("target=_blank"));
+        assert_eq!(strip_queries("no links here"), "no links here");
+    }
 }

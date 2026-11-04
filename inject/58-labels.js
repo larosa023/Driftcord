@@ -194,7 +194,7 @@ const labels = (() => {
   }
   function diagnostics() {
     const out = [];
-    out.push('Driftcord ' + VERSION + ' · ' + new Date().toISOString());
+    out.push('Driftcord ' + VERSION + ' · ' + new Date().toISOString() + (window.__driftcordBootMs ? ' · scripts loaded in ' + window.__driftcordBootMs.toFixed(0) + ' ms' : ''));
     out.push('badge fixer: ' + JSON.stringify(stats));
     try { out.push('discordQuality: ' + JSON.stringify(discordQuality.debug())); } catch (e) { out.push('discordQuality: error ' + e); }
     out.push('encoder: ' + JSON.stringify(encStats));

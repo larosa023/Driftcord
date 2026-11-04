@@ -4,6 +4,15 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.41', date: '2026-11-04', title: 'Quality-of-life update',
+    items: [
+      ['new', 'Start with Windows: a switch in About opens Driftcord quietly in the tray when you sign in.'],
+      ['improved', 'Vencord / Equicord now re-check for a new version every few hours while Driftcord is open, not only at launch. The Mods tab shows when each was last refreshed.'],
+      ['fixed', 'Problem reports and the link/download log no longer contain the secret part of Discord attachment links.'],
+      ['improved', 'Diagnostics now include how long Driftcord\'s scripts took to load, to help track down slow starts.'],
+    ],
+  },
+  {
     version: '0.4.40', date: '2026-10-31', title: 'Sturdier updates',
     items: [
       ['fixed', 'If installing an update fails, the message now has a "Try again" button that re-checks and retries, instead of leaving you with nothing to click.'],

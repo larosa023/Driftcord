@@ -40,4 +40,7 @@ setInterval(() => {
   if (panel && !panel.host.isConnected && document.body) document.body.appendChild(panel.host);
 }, 3000);
 
-console.log('%c Driftcord ' + VERSION + ' loaded (' + (performance.now() - BOOT_T0).toFixed(1) + ' ms) ', 'background:#4fa3ff;color:#fff;border-radius:4px;padding:2px 4px');
+const BOOT_MS = performance.now() - BOOT_T0;
+console.log('%c Driftcord ' + VERSION + ' loaded (' + BOOT_MS.toFixed(1) + ' ms) ', 'background:#4fa3ff;color:#fff;border-radius:4px;padding:2px 4px');
+
+window.__driftcordBootMs = BOOT_MS;
