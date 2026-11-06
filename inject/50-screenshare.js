@@ -270,6 +270,7 @@ async function startNativeShare(source, opts) {
     } });
   } catch (e) {
     share.end(false);
+    pickedQuality = null;   // the share never started: leave later streams alone
     throw e;
   }
   return share.stream;
@@ -337,6 +338,7 @@ function sharePicker() {
     const seg = (items, value, onPick) => h('div', { class: 'seg' }, items.map(([v, label, title]) =>
       h('button', { 'aria-pressed': String(value === v), title: title || '', onclick: () => { onPick(v); drawFooter(); } }, label)));
 
+    let lastBarKey = '';
     function drawTabs() {
       const count = (k) => (sources || []).filter((s) => s.kind === k).length;
       tabsEl.replaceChildren(...[['screen', 'Screens'], ['window', 'Windows']].map(([k, label]) =>
@@ -438,7 +440,10 @@ function sharePicker() {
       }
       if (closed) return;
       const scroll = grid.scrollTop;
-      drawTabs(); drawGrid(); drawFooter();
+      // Rebuild the buttons only when something they show changed (keeps keyboard focus).
+      const barKey = tab + '|' + selected + '|' + error + '|' + (sources || []).map((x) => x.id + x.kind).join(',');
+      if (barKey !== lastBarKey) { lastBarKey = barKey; drawTabs(); drawFooter(); }
+      drawGrid();
       grid.scrollTop = scroll;
     }
 

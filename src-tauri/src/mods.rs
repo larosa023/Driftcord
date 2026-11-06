@@ -130,16 +130,22 @@ pub(crate) fn client(public_only: bool) -> Result<reqwest::Client, String> {
         .map_err(|e| e.to_string())
 }
 
+static DOWNLOAD_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Download (or refresh) a mod into the cache. Returns the new size in bytes.
 pub async fn download(app: &AppHandle, id: &str) -> Result<u64, String> {
     let src = find(id).ok_or("unknown mod")?;
-    let res = client(false)?.get(src.url).send().await.map_err(|e| format!("download failed: {e}"))?;
+    let _one_at_a_time = DOWNLOAD_LOCK.lock().await;
+    let mut res = client(false)?.get(src.url).send().await.map_err(|e| format!("download failed: {e}"))?;
     if !res.status().is_success() {
         return Err(format!("download failed: HTTP {}", res.status()));
     }
-    let bytes = res.bytes().await.map_err(|e| format!("download failed: {e}"))?;
-    if bytes.len() > MAX_MOD_BYTES {
-        return Err("download too large".into());
+    let mut bytes: Vec<u8> = Vec::new();
+    while let Some(chunk) = res.chunk().await.map_err(|e| format!("download failed: {e}"))? {
+        if bytes.len() + chunk.len() > MAX_MOD_BYTES {
+            return Err("download too large".into());
+        }
+        bytes.extend_from_slice(&chunk);
     }
     let text = std::str::from_utf8(&bytes).map_err(|_| "download wasn't a script")?;
     if !text.contains("==UserScript==") {

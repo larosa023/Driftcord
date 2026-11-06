@@ -175,7 +175,9 @@ fn run_trim(app: &AppHandle) {
     let Some(w) = app.get_webview_window(crate::MAIN) else { return };
     let hidden = !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false);
     let focused = w.is_focused().unwrap_or(false);
-    if hidden {
+    if hidden && IN_CALL.load(Ordering::SeqCst) {
+        // In a call or sharing from the tray: a fully hidden page can throttle the stream.
+    } else if hidden {
         let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
         trim(&w, Trim::Full);
     } else if !focused && !IN_CALL.load(Ordering::SeqCst) {

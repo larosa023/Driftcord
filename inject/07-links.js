@@ -127,14 +127,15 @@ window.__driftcordDownloaded = (name, ok) => {
 // ── What a click on a download/attachment really does (diagnostics) ──────────
 // Logged to net-events.txt by the app, next to its own navigation/download events.
 /** If a download click does nothing, the app fetches the file itself (after a short wait). */
-let lastAttachLink = null;   // the attachment the pointer was last over (for the "..." menu's Download item)
+let lastAttachLink = null, lastAttachBox = null;   // the attachment the pointer was last over (for the "..." menu's Download item)
 const isCdnAttachment = (u) => /^https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\//.test(u || '');
 const ATTACH_SEL = '[class*="attachment"], [class*="fileAttachment"], [class*="textFile"], [class*="download"]';
 
 document.addEventListener('pointerover', (e) => {
   const el = e.target instanceof Element ? e.target : null;
   const box = el && el.closest(ATTACH_SEL);
-  if (!box) return;
+  if (!box || box === lastAttachBox) return;
+  lastAttachBox = box;
   const l = [...box.querySelectorAll('a[href]')].find((x) => isCdnAttachment(x.href));
   if (l) lastAttachLink = l;
 }, true);

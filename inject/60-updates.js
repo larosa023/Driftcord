@@ -5,9 +5,11 @@
 let updateToast = null;
 let pendingUpdate = null;   // an update found but not installed yet
 let lastUpdateCheck = 0;
+let installing = false;     // an install is downloading: leave its toast alone
 
 /** Returns the update info, `null` when up to date, or `undefined` on error. */
 async function checkForUpdates(manual = false) {
+  if (installing) return pendingUpdate || undefined;
   if (!bridge.available()) {
     if (manual) toast('Updates work in the installed Driftcord app');
     return undefined;
@@ -38,11 +40,14 @@ function offerUpdate(u) {
 }
 
 async function installUpdate(el) {
+  if (installing) return;
+  installing = true;
   if (el) el.querySelectorAll('button').forEach((b) => (b.disabled = true));
   if (updateToast) updateToast.update('Downloading update…', 'Driftcord will restart when it\'s ready.');
   try {
     await bridge.invoke('install_update'); // restarts the app on success
   } catch (e) {
+    installing = false;
     if (updateToast) updateToast.close();
     updateToast = null;
     pendingUpdate = null;

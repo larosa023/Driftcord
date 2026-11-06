@@ -57,10 +57,18 @@ pub fn load(app: &AppHandle) -> Config {
     if let Some(c) = CACHE.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
         return c.clone();
     }
-    let cfg: Config = path(app)
-        .and_then(|p| fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
+    let raw = path(app).and_then(|p| fs::read_to_string(p).ok());
+    let cfg: Config = match raw.as_deref().map(serde_json::from_str::<Config>) {
+        Some(Ok(c)) => c,
+        Some(Err(_)) => {
+            // Unreadable settings: keep a copy instead of silently overwriting them.
+            if let Some(p) = path(app) {
+                let _ = fs::copy(&p, p.with_extension("json.bad"));
+            }
+            Config::default()
+        }
+        None => Config::default(),
+    };
     *CACHE.write().unwrap_or_else(|e| e.into_inner()) = Some(cfg.clone());
     cfg
 }
@@ -71,7 +79,9 @@ pub fn save(app: &AppHandle, cfg: &Config) -> Result<(), String> {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     let json = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
-    fs::write(p, json).map_err(|e| e.to_string())?;
+    let tmp = p.with_extension("json.tmp");
+    fs::write(&tmp, json).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p).map_err(|e| e.to_string())?;
     *CACHE.write().unwrap_or_else(|e| e.into_inner()) = Some(cfg.clone());
     Ok(())
 }

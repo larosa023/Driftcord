@@ -331,8 +331,10 @@ function createPanel() {
         h('h2', {}, 'Settings'),
         h('div', { class: 'btns' },
           h('button', { class: 'btn', onclick: async () => {
-            await navigator.clipboard.writeText(JSON.stringify(store.all(), null, 2));
-            status.textContent = 'Settings copied to clipboard.';
+            try {
+              await navigator.clipboard.writeText(JSON.stringify(store.all(), null, 2));
+              status.textContent = 'Settings copied to clipboard.';
+            } catch (_) { status.textContent = 'Could not copy. Allow clipboard access and try again.'; }
           } }, 'Export'),
           h('button', { class: 'btn', onclick: async () => {
             try {
@@ -361,7 +363,7 @@ function createPanel() {
 
   /** One click: copies a diagnostics report and opens a pre-filled GitHub issue. */
   function reportCard() {
-    const msg = h('p', { class: 'hint' }, 'Copies a report (version, settings, what the stream is doing) to your clipboard and opens the issue page. No account tokens or messages are included.');
+    const msg = h('p', { class: 'hint' }, 'Copies a report (version, settings, what the stream is doing) to your clipboard and opens the issue page. It doesn\'t include your messages or account details.');
     const copy = async (text) => {
       try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
       try {
@@ -535,8 +537,10 @@ function createPanel() {
     if (open) {
       render();
       if (!popOverlay) popOverlay = pushOverlay(() => toggle(false));
-    } else if (popOverlay) {
-      popOverlay(); popOverlay = null;
+    } else {
+      // Drop the tab's content so its live cards (stream, links, memory) stop refreshing.
+      main.replaceChildren();
+      if (popOverlay) { popOverlay(); popOverlay = null; }
     }
   }
 

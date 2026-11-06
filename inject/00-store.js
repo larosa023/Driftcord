@@ -5,7 +5,7 @@
 const BOOT_T0 = performance.now();
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.4.41';
+const VERSION = '0.4.42';
 // Whether Driftcord had run before (settings existed) when this page loaded.
 const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 
@@ -90,7 +90,9 @@ const store = (() => {
     },
     all: () => data,
     reset() {
+      const news = data.news;
       data = structuredClone(DEFAULTS);
+      if (news) data.news = news;   // "Reset all" shouldn't bring the What's new dot back
       applyDebloatDefaults();
       save();
       listeners.forEach((fn) => fn('*'));

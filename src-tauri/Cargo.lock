@@ -880,7 +880,7 @@ dependencies = [
 
 [[package]]
 name = "driftcord"
-version = "0.4.40"
+version = "0.4.41"
 dependencies = [
  "base64 0.22.1",
  "jpeg-encoder",
@@ -896,6 +896,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
  "tauri-runtime",
+ "tokio",
  "url",
  "wasapi",
  "webview2-com",

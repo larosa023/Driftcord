@@ -4,6 +4,20 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.42', date: '2026-11-06', title: 'Big polish update',
+    items: [
+      ['fixed', 'Sharing your screen while Driftcord sits in the tray no longer risks the stream stalling: the memory trim is skipped while you are in a call.'],
+      ['improved', 'Lower background use: the quality-badge check now only runs for real live streams (not GIFs or clips), and the About tab stops refreshing when you close the panel.'],
+      ['improved', 'Starting with Windows opens straight into the tray with no window flash, and trims memory as usual.'],
+      ['improved', 'Stream easing now also reacts if the encoder stalls completely, and a failed share start no longer leaves quality settings behind for the next stream.'],
+      ['improved', 'The share picker no longer rebuilds its buttons every few seconds, so keyboard focus stays put.'],
+      ['fixed', 'Saved attachments are marked as downloaded from the internet (so Windows SmartScreen checks them), never overwrite an existing file, and are size-limited while downloading.'],
+      ['fixed', 'Settings are written safely: a crash mid-save can no longer wipe them, and an unreadable settings file is kept as a backup instead of being overwritten.'],
+      ['fixed', 'A failed update install no longer loses the update (Try again works), and a re-check can no longer interrupt a download in progress.'],
+      ['fixed', 'Many smaller fixes: a possible crash writing a very large diagnostics file, Vencord downloads can no longer collide, "Reset all" no longer brings back the What\'s new dot, analytics blocking now also covers fetch(URL) requests, and more.'],
+    ],
+  },
+  {
     version: '0.4.41', date: '2026-11-04', title: 'Quality-of-life update',
     items: [
       ['new', 'Start with Windows: a switch in About opens Driftcord quietly in the tray when you sign in.'],

@@ -13,7 +13,7 @@ let callCheck = 0;
 
 function updateCallState() {
   for (const pc of voicePcs) {
-    if (pc.connectionState === 'closed' || pc.signalingState === 'closed') voicePcs.delete(pc);
+    if (pc.connectionState === 'closed' || pc.connectionState === 'failed' || pc.signalingState === 'closed') voicePcs.delete(pc);
   }
   const now = [...voicePcs].some((pc) => pc.connectionState === 'connected' ||
     pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');

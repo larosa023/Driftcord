@@ -429,7 +429,14 @@ mod win {
                     let _ = tx.send(r.ok());
                 })
                 .ok()?;
-            let p = rx.recv_timeout(Duration::from_secs(2)).ok()??;
+            let p = match rx.recv_timeout(Duration::from_secs(2)) {
+                Ok(Some(p)) => p,
+                _ => {
+                    // The buffer may be replaced (and the old one closed) late: don't trust the old slot.
+                    slot.cap.store(0, Ordering::Relaxed);
+                    return None;
+                }
+            };
             slot.ptr.store(p, Ordering::Relaxed);
             slot.cap.store(size, Ordering::Relaxed);
             Some(p as *mut u8)

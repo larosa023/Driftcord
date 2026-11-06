@@ -47,7 +47,7 @@ document.addEventListener('play', (e) => {
 document.addEventListener('pointerover', (e) => {
   const v = e.target instanceof Element && e.target.closest('video');
   if (!v || isLive(v) || allowed.has(v) || !store.get('memory.noAutoplay')) return;
-  if (v.paused && (v.autoplay || v.loop)) {
+  if (v.paused && (v.autoplay || v.loop) && !hovering.has(v)) {
     hovering.add(v);
     realPlay.call(v).catch(() => {});
     const leave = () => {

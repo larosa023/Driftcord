@@ -16,7 +16,7 @@ function shouldBlock(url, method = 'GET') {
 // fetch
 const realFetch = window.fetch;
 window.fetch = function (input, init) {
-  const url = typeof input === 'string' ? input : input && input.url;
+  const url = typeof input === 'string' ? input : input && (input.url || input.href);
   const method = (init && init.method) || (input && input.method) || 'GET';
   if (shouldBlock(url, method)) return Promise.resolve(new Response(null, { status: 204 }));
   return realFetch.apply(this, arguments);

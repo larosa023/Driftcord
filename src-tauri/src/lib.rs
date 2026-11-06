@@ -262,8 +262,13 @@ fn write_diag(app: AppHandle, text: String) -> Result<String, String> {
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let file = dir.join("stream-diag.txt");
     let mut body = text;
-    body.truncate(200_000);
-    std::fs::write(&file, body).map_err(|e| e.to_string())?;
+    if body.len() > 200_000 {
+        let cut = (0..=200_000).rev().find(|i| body.is_char_boundary(*i)).unwrap_or(0);
+        body.truncate(cut);
+    }
+    let tmp = dir.join("stream-diag.txt.tmp");
+    std::fs::write(&tmp, body).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &file).map_err(|e| e.to_string())?;
     Ok(file.to_string_lossy().into_owned())
 }
 
@@ -290,8 +295,8 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+        if b[i] == b'%' && i + 2 <= b.len() - 1 {
+            if let Some(v) = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok()) {
                 out.push(v);
                 i += 3;
                 continue;
@@ -301,6 +306,36 @@ fn percent_decode(s: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Creates a new file in `dir` (never overwriting one), marks it as downloaded from the
+/// internet so SmartScreen checks it, and returns its path.
+fn write_new_file(dir: &std::path::Path, name: &str, bytes: &[u8]) -> Result<std::path::PathBuf, String> {
+    use std::io::Write;
+    let p = std::path::Path::new(name);
+    let stem = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "download".into());
+    let ext = p.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    let reserved = ["con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"];
+    let stem = if reserved.contains(&stem.to_lowercase().as_str()) { format!("_{stem}") } else { stem };
+    for n in 0..1000 {
+        let file = if n == 0 { format!("{stem}{ext}") } else { format!("{stem} ({n}){ext}") };
+        let target = dir.join(&file);
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&target) {
+            Ok(mut f) => {
+                f.write_all(bytes).map_err(|e| e.to_string())?;
+                #[cfg(windows)]
+                {
+                    let mut z = target.as_os_str().to_owned();
+                    z.push(":Zone.Identifier");
+                    let _ = std::fs::write(z, "[ZoneTransfer]\r\nZoneId=3\r\n");
+                }
+                return Ok(target);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    Err("could not pick a file name".into())
 }
 
 /// Backup for a download click that did nothing: fetch a Discord attachment
@@ -321,7 +356,7 @@ async fn save_url(app: AppHandle, url: String, name: Option<String>) -> Result<S
     let fallback = u.path_segments().and_then(|mut s| s.next_back()).map(percent_decode).unwrap_or_default();
     let file_name = safe_file_name(&name.filter(|n| !n.trim().is_empty()).unwrap_or(fallback));
     let dir = app.path().download_dir().map_err(|e| e.to_string())?;
-    let res = mods::client(false)?.get(u).send().await.map_err(|e| format!("download failed: {e}"))?;
+    let mut res = mods::client(false)?.get(u).send().await.map_err(|e| format!("download failed: {e}"))?;
     if !res.status().is_success() {
         return Err(format!("download failed: HTTP {}", res.status()));
     }
@@ -329,12 +364,16 @@ async fn save_url(app: AppHandle, url: String, name: Option<String>) -> Result<S
     if res.content_length().map(|l| l > MAX).unwrap_or(false) {
         return Err("file too large".into());
     }
-    let bytes = res.bytes().await.map_err(|e| format!("download failed: {e}"))?;
-    if bytes.len() as u64 > MAX {
-        return Err("file too large".into());
+    let mut bytes: Vec<u8> = Vec::new();
+    while let Some(chunk) = res.chunk().await.map_err(|e| format!("download failed: {e}"))? {
+        if (bytes.len() + chunk.len()) as u64 > MAX {
+            return Err("file too large".into());
+        }
+        bytes.extend_from_slice(&chunk);
     }
-    let target = unique_download_path(&dir, std::ffi::OsStr::new(&file_name));
-    std::fs::write(&target, &bytes).map_err(|e| e.to_string())?;
+    let target = tauri::async_runtime::spawn_blocking({ let n = file_name.clone(); move || write_new_file(&dir, &n, &bytes) })
+        .await
+        .map_err(|e| e.to_string())??;
     log_event(&app, &format!("rescued download saved: {}", target.display()));
     Ok(target.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or(file_name))
 }
@@ -369,13 +408,16 @@ fn strip_queries(line: &str) -> String {
 
 /// Appends one line to net-events.txt next to the config (navigation, pop-up and
 /// download events, for diagnosing links and downloads). Capped at ~100 KB.
+static LOG_LOCK: Mutex<()> = Mutex::new(());
+
 fn log_event(app: &AppHandle, line: &str) {
     use std::io::Write;
+    let _guard = LOG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let Ok(dir) = app.path().app_config_dir() else { return };
     let _ = std::fs::create_dir_all(&dir);
     let file = dir.join("net-events.txt");
     if std::fs::metadata(&file).map(|m| m.len() > 100_000).unwrap_or(false) {
-        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::rename(&file, dir.join("net-events.old.txt"));
     }
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let short: String = strip_queries(line).chars().take(600).collect();
@@ -427,7 +469,7 @@ fn set_in_call(app: AppHandle, on: bool) {
 fn set_badge(app: AppHandle, rgba: Vec<u8>, width: u32, height: u32) {
     #[cfg(windows)]
     if let Some(w) = app.get_webview_window(MAIN) {
-        let img = if rgba.is_empty() || rgba.len() != (width * height * 4) as usize {
+        let img = if rgba.is_empty() || width == 0 || height == 0 || width > 256 || height > 256 || rgba.len() as u64 != u64::from(width) * u64::from(height) * 4 {
             None
         } else {
             Some(tauri::image::Image::new_owned(rgba, width, height))
@@ -593,7 +635,7 @@ async fn check_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> Resu
 
 #[tauri::command]
 async fn install_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> Result<(), String> {
-    let update = pending.0.lock().unwrap_or_else(|e| e.into_inner()).take().ok_or("no update pending")?;
+    let update = pending.0.lock().unwrap_or_else(|e| e.into_inner()).clone().ok_or("no update pending")?;
     update
         .download_and_install(|_, _| {}, || {})
         .await
@@ -622,7 +664,11 @@ pub fn run() {
         // "has a Windows title bar", which would bring that bar back.
         .plugin(
             tauri_plugin_window_state::Builder::default()
-                .with_state_flags(tauri_plugin_window_state::StateFlags::all() & !tauri_plugin_window_state::StateFlags::DECORATIONS)
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        & !tauri_plugin_window_state::StateFlags::DECORATIONS
+                        & !tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
@@ -680,6 +726,7 @@ pub fn run() {
                 native_titlebar: cfg.native_titlebar,
             });
 
+            let started_minimized = std::env::args().any(|a| a == "--minimized");
             let mut builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::External(DISCORD_URL.parse()?))
                 .title("Driftcord")
                 // One bar: Discord's top bar is the title bar (with our own
@@ -687,6 +734,7 @@ pub fn run() {
                 // rounded corners and border.
                 .decorations(cfg.native_titlebar)
                 .shadow(true)
+                .visible(!started_minimized)
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(940.0, 500.0)
                 .background_color(
@@ -769,8 +817,8 @@ pub fn run() {
             // Belt and braces: whatever was saved before, the frame follows the setting.
             let _ = main.set_decorations(cfg.native_titlebar);
             // Started by Windows at sign-in: stay in the tray until opened.
-            if std::env::args().any(|a| a == "--minimized") {
-                let _ = main.hide();
+            if started_minimized {
+                lean::on_hidden(&handle);
             }
 
             // Refresh the enabled mod in the background (the new copy loads next

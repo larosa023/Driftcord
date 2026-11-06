@@ -86,13 +86,13 @@ const discordQuality = (() => {
     return { media: want.MediaEngineStore, user: want.UserStore };
   }
 
-  let lastLookup = 0;
+  let lastLookup = 0, lookups = 0, startTimers = [];
   /** Discord's flux stores by name. A failed lookup is retried at most every 10 s. */
   function findStores() {
     if (stores) return stores;
     const now = Date.now();
-    if (now - lastLookup < 10000) return null;
-    lastLookup = now;
+    if (now - lastLookup < 10000 || lookups >= 4) return null;   // a few tries, then stop scanning
+    lastLookup = now; lookups++;
     const found = storesViaMod() || storesViaScan();
     state.store = !!(found && found.media);
     state.userStore = !!(found && found.user);
@@ -247,22 +247,22 @@ const discordQuality = (() => {
 
   return {
     /** Called when the share picker opens: get hold of Discord early. */
-    prepare() { try { patchQualityMethod([streamConnection(), engine()].filter(Boolean)); } catch (e) { fail('prepare', e); } },
+    prepare() { try { lookups = 0; patchQualityMethod([streamConnection(), engine()].filter(Boolean)); } catch (e) { fail('prepare', e); } },
     /** A Driftcord share just started. */
     onShareStart(s) {
       stream = s;
       state.asserts = 0; state.errors = []; state.params = null; state.applied = null;
       clearInterval(ticker);
       // Discord sets its own values right after the stream starts; keep ours.
-      const delays = [0, 100, 300, 700, 1500, 3000];
-      for (const d of delays) setTimeout(() => { try { assert(); } catch (e) { fail('assert', e); } }, d);
+      for (const t of startTimers) clearTimeout(t);
+      startTimers = [0, 100, 300, 700, 1500, 3000].map((d) => setTimeout(() => { try { assert(); } catch (e) { fail('assert', e); } }, d));
       ticker = setInterval(() => { try { assert(); } catch (e) { fail('assert', e); } refreshEncoderStats(); }, 2000);
-      setTimeout(() => {
-        if (!state.conn) toast('Stream quality may be capped by Discord', {
+      startTimers.push(setTimeout(() => {
+        if (stream === s && !state.conn) toast('Stream quality may be capped by Discord', {
           sub: 'Driftcord couldn\'t reach Discord\'s stream connection. See About → Stream.', duration: 8000 });
-      }, 3500);
+      }, 3500));
     },
-    onShareEnd() { stream = null; clearInterval(ticker); ticker = 0; encPrev = null; adaptReset(); },
+    onShareEnd() { stream = null; clearInterval(ticker); ticker = 0; encPrev = null; for (const t of startTimers) clearTimeout(t); startTimers = []; adaptReset(); },
     assert() { try { assert(); } catch (e) { fail('assert', e); } },
     debug() { return { ...state, pick: pickedQuality, live: !!stream }; },
     history() { return [...encHistory, ...adaptState.notes.slice(-10)]; },
@@ -292,7 +292,8 @@ function adaptReset() {
 
 function adaptTick(e, pick = pickedQuality) {
   if (store.get('screenshare.adaptive') === false) { if (adapt.scale !== 1 || adapt.motion) adaptReset(); return; }
-  if (!pick || !e || !e.fps) return;
+  if (!pick || !e) return;
+  if (!e.fps && !(e.encoded > 0)) return;   // nothing has been sent yet
   const now = Date.now();
   const want = pick.fps;
   const captureOk = e.srcFps < 0 || e.srcFps >= want * 0.8;     // frames are being delivered

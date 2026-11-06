@@ -78,7 +78,8 @@ const labels = (() => {
     return big[0].a > 0 && big[0].a >= big[1].a * 1.5 ? big[0].v : null;
   }
 
-  function loneVideoAny() { for (const v of document.getElementsByTagName('video')) if (v.videoWidth) return true; return false; }
+  // Only live-stream videos count (they use a MediaStream); GIF and clip embeds don't.
+  function loneVideoAny() { for (const v of document.getElementsByTagName('video')) if (v.videoWidth && v.srcObject) return true; return false; }
 
   function liveShare() { try { return !!discordQuality.debug().live; } catch (_) { return false; } }
 
@@ -189,7 +190,7 @@ const labels = (() => {
   }
   function snippet(el, max = 700) {
     let html = el.outerHTML || '';
-    html = html.replace(/\s(href|src|srcset|style)="[^"]*"/g, '');
+    html = html.replace(/\s(href|src|srcset|style|alt|title|aria-label)="[^"]*"/g, '').replace(/>([^<]{17,})</g, '>…<');
     return html.length > max ? html.slice(0, max) + '…' : html;
   }
   function diagnostics() {
@@ -310,7 +311,7 @@ const labels = (() => {
     timer = setInterval(() => {
       try { scan(); } catch (e) { stats.note = 'error: ' + (e && e.message || e); }
       // While a stream is up, keep a fresh snapshot on disk for the dev.
-      if (stats.note !== 'no stream playing' && stats.note !== 'window hidden') saveDiagnostics(false);
+      if (liveShare()) saveDiagnostics(false);
     }, 1500);
   }
   window.driftcordFixLabels = scan;
