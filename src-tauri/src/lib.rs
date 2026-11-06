@@ -174,13 +174,14 @@ struct Active {
 }
 
 /// In-game voice overlay (see overlay.rs). The page sends the list; this shows it.
+/// Async on purpose: creating a window from a synchronous command deadlocks on Windows.
 #[tauri::command]
-fn overlay_update(app: AppHandle, state: String, show: bool, corner: String, scale: f64, rows: u32) -> Result<(), String> {
+async fn overlay_update(app: AppHandle, state: String, show: bool, corner: String, scale: f64, rows: u32) -> Result<(), String> {
     overlay::update(&app, state, show, &corner, scale, rows)
 }
 
 #[tauri::command]
-fn overlay_close(app: AppHandle) {
+async fn overlay_close(app: AppHandle) {
     overlay::close(&app);
 }
 
@@ -423,7 +424,7 @@ fn strip_queries(line: &str) -> String {
 /// download events, for diagnosing links and downloads). Capped at ~100 KB.
 static LOG_LOCK: Mutex<()> = Mutex::new(());
 
-fn log_event(app: &AppHandle, line: &str) {
+pub(crate) fn log_event(app: &AppHandle, line: &str) {
     use std::io::Write;
     let _guard = LOG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let Ok(dir) = app.path().app_config_dir() else { return };

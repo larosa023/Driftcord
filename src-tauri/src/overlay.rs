@@ -58,6 +58,7 @@ fn place(app: &AppHandle, w: &tauri::WebviewWindow, corner: &str, scale: f64, ro
     let y = if corner.starts_with("top") { mp.y + margin } else { mp.y + ms.height as i32 - ph - margin };
     let _ = w.set_size(PhysicalSize::new(pw as u32, ph as u32));
     let _ = w.set_position(PhysicalPosition::new(x, y));
+    crate::log_event(app, &format!("overlay: placed {pw}x{ph} at {x},{y} on {}x{} (scale {sf})", ms.width, ms.height));
 }
 
 /// Show (or hide) the overlay with a new state. `rows` sizes the window to the list.
@@ -79,7 +80,16 @@ pub fn update(app: &AppHandle, state: String, show: bool, corner: &str, scale: f
     let scale = scale.clamp(0.7, 1.6);
     let w = match existing {
         Some(w) => w,
-        None => build(app)?,
+        None => match build(app) {
+            Ok(w) => {
+                crate::log_event(app, "overlay: window created");
+                w
+            }
+            Err(e) => {
+                crate::log_event(app, &format!("overlay: could not create window: {e}"));
+                return Err(e);
+            }
+        },
     };
     place(app, &w, corner, scale, rows.min(13));
     let _ = w.eval(&push_js());

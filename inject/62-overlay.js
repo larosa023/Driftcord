@@ -58,6 +58,11 @@ const voiceOverlay = (() => {
       try { const nick = s.member && ch && ch.guild_id && s.member.getNick(ch.guild_id, u.id); if (nick) name = nick; } catch (_) { /* no nickname */ }
       rows.push({ id: u.id, name, avatar: avatarOf(u), speaking: speaking.has(u.id), muted: !!(vs.mute || vs.selfMute), deaf: !!(vs.deaf || vs.selfDeaf) });
     }
+    // Always list yourself, even if Discord's list hasn't caught up yet.
+    const self = me();
+    if (self && !rows.some((r) => r.id === self.id)) {
+      rows.unshift({ ...self, speaking: speaking.has(self.id), muted: false, deaf: false });
+    }
     return { rows, channel: ch && ch.name || '' };
   }
 
@@ -77,6 +82,14 @@ const voiceOverlay = (() => {
     info.shown = show && rows.length > 0;
     bridge.invoke('overlay_update', { state, show, corner: c.corner, scale: c.scale, rows: rows.length + (more ? 1 : 0) })
       .catch((e) => { info.note = 'overlay failed: ' + errText(e); });
+  }
+
+  /** You, as Discord knows you (name and picture), for the preview and as a safety net. */
+  function me() {
+    const s = findStores();
+    let u = null;
+    try { u = s && s.user.getCurrentUser && s.user.getCurrentUser(); } catch (_) { /* not ready */ }
+    return u ? { id: u.id, name: u.globalName || u.username || 'You', avatar: avatarOf(u) } : null;
   }
 
   function tick() {
@@ -119,15 +132,18 @@ const voiceOverlay = (() => {
   function preview() {
     if (!bridge.available()) return;
     const c = cfg();
+    const self = me();
     const rows = [
-      { id: '1', name: 'You', avatar: '', speaking: true, muted: false, deaf: false },
+      { id: '1', name: self ? self.name : 'You', avatar: self ? self.avatar : '', speaking: true, muted: false, deaf: false },
       { id: '2', name: 'Friend', avatar: '', speaking: false, muted: true, deaf: false },
       { id: '3', name: 'Another friend', avatar: '', speaking: false, muted: false, deaf: false },
     ];
     clearTimeout(previewTimer);
     lastKey = '';
     const state = JSON.stringify({ rows, more: 0, scale: c.scale, opacity: c.opacity, dimQuiet: true });
-    bridge.invoke('overlay_update', { state, show: true, corner: c.corner, scale: c.scale, rows: rows.length }).catch(() => {});
+    bridge.invoke('overlay_update', { state, show: true, corner: c.corner, scale: c.scale, rows: rows.length })
+      .then(() => { info.note = 'preview shown'; })
+      .catch((e) => { info.note = 'overlay failed: ' + errText(e); toast('The overlay could not open', { sub: errText(e).slice(0, 160), duration: 9000 }); });
     previewTimer = setTimeout(() => { previewTimer = 0; lastKey = ''; if (active) tick(); else bridge.invoke('overlay_close').catch(() => {}); }, 6000);
   }
 

@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.44', date: '2026-11-06', title: 'Overlay fix',
+    items: [
+      ['fixed', 'The voice overlay preview did not open on Windows: the app was creating its window in a way Windows can deadlock on. It now opens correctly, and shows an error message if it still can\'t.'],
+      ['improved', 'The overlay always lists you (with your own name and picture), and the preview uses them too.'],
+    ],
+  },
+  {
     version: '0.4.43', date: '2026-11-06', title: 'In-game voice overlay',
     items: [
       ['new', 'Voice overlay: while you are in a voice channel and playing a borderless or windowed game, a small click-through box shows who is there and who is talking (with mute and deafen icons). It hides when Driftcord is in front.'],
