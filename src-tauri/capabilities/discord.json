@@ -21,6 +21,8 @@
     "allow-set-badge",
     "allow-reveal-download",
     "allow-save-url",
+    "allow-overlay-update",
+    "allow-overlay-close",
     "allow-get-autostart",
     "allow-set-autostart",
     "allow-read-net-events",

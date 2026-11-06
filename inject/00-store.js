@@ -5,7 +5,7 @@
 const BOOT_T0 = performance.now();
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.4.42';
+const VERSION = '0.4.43';
 // Whether Driftcord had run before (settings existed) when this page loaded.
 const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 
@@ -41,6 +41,13 @@ const DEFAULTS = {
     adaptive: true,      // ease the stream if the PC/connection can't keep up
     lastSource: null,
     lastTab: 'screen',
+  },
+  overlay: {
+    enabled: true,       // in-game voice overlay (needs Vencord or Equicord)
+    corner: 'top-right', // 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+    size: 'medium',      // 'small' | 'medium' | 'large'
+    onlyTalking: false,
+    opacity: 0.78,
   },
   updates: {
     auto: true,          // check GitHub for new Driftcord versions

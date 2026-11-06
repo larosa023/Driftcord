@@ -7,6 +7,7 @@
 //! self-updating.
 
 mod capture;
+mod overlay;
 mod config;
 mod lean;
 mod mods;
@@ -50,6 +51,7 @@ fn injection_script() -> String {
         include_str!("../../inject/56-badge.js"),
         include_str!("../../inject/58-labels.js"),
         include_str!("../../inject/60-updates.js"),
+        include_str!("../../inject/62-overlay.js"),
         include_str!("../../inject/65-monitor.js"),
         include_str!("../../inject/99-boot.js"),
     ];
@@ -169,6 +171,17 @@ struct Active {
     gpu_in_process: bool,
     gpu_boost: bool,
     native_titlebar: bool,
+}
+
+/// In-game voice overlay (see overlay.rs). The page sends the list; this shows it.
+#[tauri::command]
+fn overlay_update(app: AppHandle, state: String, show: bool, corner: String, scale: f64, rows: u32) -> Result<(), String> {
+    overlay::update(&app, state, show, &corner, scale, rows)
+}
+
+#[tauri::command]
+fn overlay_close(app: AppHandle) {
+    overlay::close(&app);
 }
 
 /// "Start with Windows" (opens quietly in the tray).
@@ -461,6 +474,9 @@ fn unique_download_path(dir: &std::path::Path, name: &std::ffi::OsStr) -> std::p
 /// The page is in (or left) a voice/video call.
 #[tauri::command]
 fn set_in_call(app: AppHandle, on: bool) {
+    if !on {
+        overlay::close(&app);
+    }
     lean::set_in_call(&app, on);
 }
 
@@ -688,6 +704,8 @@ pub fn run() {
             set_in_call,
             reveal_download,
             save_url,
+            overlay_update,
+            overlay_close,
             get_autostart,
             set_autostart,
             read_net_events,
@@ -741,7 +759,9 @@ pub fn run() {
                     cfg.background.as_deref().and_then(parse_hex).unwrap_or(tauri::webview::Color(0x13, 0x1f, 0x33, 255)),
                 )
                 .initialization_script(injection_script());
-            if let Some(args) = lean::browser_args(lean, cfg.js_optimize_size, cfg.gpu_in_process, cfg.gpu_boost) {
+            let browser_args = lean::browser_args(lean, cfg.js_optimize_size, cfg.gpu_in_process, cfg.gpu_boost);
+            let _ = overlay::BROWSER_ARGS.set(browser_args.clone());
+            if let Some(args) = browser_args {
                 builder = builder.additional_browser_args(&args);
             }
             if let Some(script) = mod_script {

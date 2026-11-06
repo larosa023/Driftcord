@@ -276,6 +276,14 @@ function createPanel() {
         h('h2', {}, 'Shortcut'),
         h('div', { class: 'row' }, h('span', { class: 'label' }, 'Start or stop sharing',
           h('span', { class: 'desc' }, 'While you\'re in a voice channel')), h('kbd', {}, 'Ctrl+Alt+S')),
+        h('h2', {}, 'In-game voice overlay'),
+        h('p', { class: 'hint' }, 'Shows who is in your voice channel and who is talking, on top of borderless and windowed games (not exclusive fullscreen). Needs Vencord or Equicord (Mods tab). It stays hidden while Driftcord is the window in front.'),
+        toggleRow('overlay.enabled', 'Show overlay in games', 'Only while you are in a voice channel'),
+        h('h2', {}, 'Position'), segOf('overlay.corner', [['top-left', 'Top left'], ['top-right', 'Top right'], ['bottom-left', 'Bottom left'], ['bottom-right', 'Bottom right']]),
+        h('h2', {}, 'Size'), segOf('overlay.size', [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']]),
+        toggleRow('overlay.onlyTalking', 'Only show who is talking', 'Hides everyone else until they speak'),
+        h('div', { class: 'btns', style: 'margin-top:8px' }, h('button', { class: 'btn', onclick: () => voiceOverlay.preview() }, 'Preview for 6 seconds')),
+        h('p', { class: 'hint' }, 'Status: ' + voiceOverlay.info.note + (voiceOverlay.info.stores ? '' : ' · hasn\'t reached Discord yet (join a voice call first)')),
       ];
     },
 

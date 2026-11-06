@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.43', date: '2026-11-06', title: 'In-game voice overlay',
+    items: [
+      ['new', 'Voice overlay: while you are in a voice channel and playing a borderless or windowed game, a small click-through box shows who is there and who is talking (with mute and deafen icons). It hides when Driftcord is in front.'],
+      ['new', 'Share tab → In-game voice overlay: choose the corner and size, show only who is talking, or press Preview to see it for 6 seconds. Needs Vencord or Equicord.'],
+    ],
+  },
+  {
     version: '0.4.42', date: '2026-11-06', title: 'Big polish update',
     items: [
       ['fixed', 'Sharing your screen while Driftcord sits in the tray no longer risks the stream stalling: the memory trim is skipped while you are in a call.'],

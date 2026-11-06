@@ -19,6 +19,7 @@ function updateCallState() {
     pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
   if (now === inCall) return;
   inCall = now;
+  try { voiceOverlay.callChanged(now); } catch (_) { /* overlay not loaded yet */ }
   if (bridge.available()) bridge.invoke('set_in_call', { on: now }).catch(() => {});
   // close() fires no events, so double-check now and then while a call is up.
   clearInterval(callCheck);
