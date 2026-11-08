@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.47', date: '2026-11-08', title: 'Pop-out windows',
+    items: [
+      ['fixed', 'Discord\'s pop-out viewer (and other pop-outs) now opens in its own window instead of your browser. Other links still open in your browser.'],
+      ['improved', 'While a pop-out is open, Driftcord leaves its memory trimming off so the video is never affected.'],
+    ],
+  },
+  {
     version: '0.4.46', date: '2026-11-08', title: 'Place the overlay anywhere',
     items: [
       ['new', 'Voice overlay position: pick any of nine spots (including middle left and middle right) or fine-tune with the Left/Right and Top/Bottom sliders. Changes show a quick preview.'],

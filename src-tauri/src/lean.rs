@@ -173,6 +173,10 @@ fn schedule(app: &AppHandle, enabled: bool, minutes: u32) {
 
 fn run_trim(app: &AppHandle) {
     let Some(w) = app.get_webview_window(crate::MAIN) else { return };
+    // A pop-out viewer is drawn by the main page's scripts: leave everything alone while one is open.
+    if app.webview_windows().keys().any(|l| l.starts_with("popout-")) {
+        return;
+    }
     let hidden = !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false);
     let focused = w.is_focused().unwrap_or(false);
     if hidden && IN_CALL.load(Ordering::SeqCst) {

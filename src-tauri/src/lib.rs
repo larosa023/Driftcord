@@ -827,8 +827,37 @@ pub fn run() {
                     }
                 })
                 // Links with target=_blank / window.open: open in the default browser.
-                .on_new_window(move |url, _features| {
+                .on_new_window(move |url, features| {
                     log_event(&popup_handle, &format!("new window: {url}"));
+                    // Discord's own pop-outs (stream viewer, video, call) open a blank
+                    // window or a discord.com page that Discord then fills in: give them
+                    // a real window of their own. Everything else goes to the browser.
+                    let discord_popout = url.as_str() == "about:blank"
+                        || (url.scheme() == "https" && url.host_str() == Some("discord.com"));
+                    if discord_popout {
+                        static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+                        let label = format!("popout-{}", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+                        let handle = popup_handle.clone();
+                        let built = WebviewWindowBuilder::new(&popup_handle, &label, WebviewUrl::External(url.clone()))
+                            .title("Discord")
+                            .window_features(features)
+                            .on_document_title_changed(|w, title| {
+                                if !title.trim().is_empty() {
+                                    let _ = w.set_title(&title);
+                                }
+                            })
+                            .build();
+                        return match built {
+                            Ok(window) => {
+                                log_event(&handle, &format!("pop-out opened as {label}"));
+                                NewWindowResponse::Create { window }
+                            }
+                            Err(e) => {
+                                log_event(&handle, &format!("pop-out failed: {e}"));
+                                NewWindowResponse::Deny
+                            }
+                        };
+                    }
                     open_external(&popup_handle, &url);
                     NewWindowResponse::Deny
                 })
