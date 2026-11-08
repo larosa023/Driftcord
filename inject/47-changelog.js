@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.46', date: '2026-11-08', title: 'Place the overlay anywhere',
+    items: [
+      ['new', 'Voice overlay position: pick any of nine spots (including middle left and middle right) or fine-tune with the Left/Right and Top/Bottom sliders. Changes show a quick preview.'],
+    ],
+  },
+  {
     version: '0.4.45', date: '2026-11-08', title: 'Memory and overlay diagnostics',
     items: [
       ['new', 'About → Memory: a "Free memory now" button that releases Windows-reclaimable memory right away.'],

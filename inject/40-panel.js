@@ -94,6 +94,14 @@ kbd { background: var(--d-card); border: 1px solid var(--d-line); border-bottom-
 .edge[hidden] { display: none; }
 
 /* Segmented control */
+.posbox { display: flex; gap: 14px; align-items: center; margin: 6px 0; }
+.posgrid { display: grid; grid-template-columns: repeat(3, 26px); gap: 5px; padding: 6px; background: var(--d-card); border: 1px solid var(--d-line); border-radius: 10px; flex: none; }
+.posgrid .spot { width: 26px; height: 18px; border-radius: 5px; border: 1px solid var(--d-line); background: transparent; cursor: pointer; padding: 0; }
+.posgrid .spot:hover { border-color: var(--d-muted); }
+.posgrid .spot[aria-pressed="true"] { background: var(--d-accent, #ff4f9a); border-color: transparent; }
+.sliders { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.slide { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--d-muted); }
+.slide input { width: 100%; accent-color: var(--d-accent, #ff4f9a); }
 .seg { display: flex; background: var(--d-card); border: 1px solid var(--d-line); border-radius: 10px; padding: 3px; gap: 3px; }
 .seg button { flex: 1; background: none; border: 0; color: var(--d-muted); font: inherit; font-weight: 550; font-size: 13px;
   padding: 7px 6px; border-radius: 7px; cursor: pointer; }
@@ -259,6 +267,23 @@ function createPanel() {
     },
 
     Share() {
+      /** 3x3 spots plus two sliders for anything in between; every change previews briefly. */
+      let previewSoon = 0;
+      const overlayPosition = () => {
+        const px = Number(store.get('overlay.x')), py = Number(store.get('overlay.y'));
+        const set = (x, y) => { store.set('overlay.x', x); store.set('overlay.y', y); clearTimeout(previewSoon); previewSoon = setTimeout(() => voiceOverlay.preview(), 350); };
+        const spots = [];
+        for (const y of [0, 50, 100]) for (const x of [0, 50, 100]) {
+          spots.push(h('button', { class: 'spot', 'aria-pressed': String(px === x && py === y), title: `${['Top', 'Middle', 'Bottom'][y / 50]} ${['left', 'centre', 'right'][x / 50]}`,
+            onclick: () => { set(x, y); render(); } }));
+        }
+        const slider = (label, key) => h('label', { class: 'slide' }, h('span', {}, label),
+          h('input', { type: 'range', min: '0', max: '100', step: '1', value: String(Number(store.get(key)) || 0),
+            oninput: (e) => { store.set(key, Number(e.target.value)); clearTimeout(previewSoon); previewSoon = setTimeout(() => voiceOverlay.preview(), 350); },
+            onchange: () => render() }));
+        return h('div', { class: 'posbox' }, h('div', { class: 'posgrid' }, spots),
+          h('div', { class: 'sliders' }, slider('Left ↔ Right', 'overlay.x'), slider('Top ↔ Bottom', 'overlay.y')));
+      };
       const segOf = (key, items) => h('div', { class: 'seg', role: 'group' }, items.map(([v, label, title]) =>
         h('button', { 'aria-pressed': String(store.get(key) === v), title: title || '',
           onclick: () => { store.set(key, v); render(); } }, label)));
@@ -279,7 +304,7 @@ function createPanel() {
         h('h2', {}, 'In-game voice overlay'),
         h('p', { class: 'hint' }, 'Shows who is in your voice channel and who is talking, on top of borderless and windowed games (not exclusive fullscreen). Needs Vencord or Equicord (Mods tab). It stays hidden while Driftcord is the window in front.'),
         toggleRow('overlay.enabled', 'Show overlay in games', 'Only while you are in a voice channel'),
-        h('h2', {}, 'Position'), segOf('overlay.corner', [['top-left', 'Top left'], ['top-right', 'Top right'], ['bottom-left', 'Bottom left'], ['bottom-right', 'Bottom right']]),
+        h('h2', {}, 'Position'), overlayPosition(),
         h('h2', {}, 'Size'), segOf('overlay.size', [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']]),
         toggleRow('overlay.onlyTalking', 'Only show who is talking', 'Hides everyone else until they speak'),
         h('div', { class: 'btns', style: 'margin-top:8px' }, h('button', { class: 'btn', onclick: () => voiceOverlay.preview() }, 'Preview for 6 seconds')),

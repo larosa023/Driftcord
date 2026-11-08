@@ -5,7 +5,7 @@
 const BOOT_T0 = performance.now();
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.4.45';
+const VERSION = '0.4.46';
 // Whether Driftcord had run before (settings existed) when this page loaded.
 const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 
@@ -44,7 +44,8 @@ const DEFAULTS = {
   },
   overlay: {
     enabled: true,       // in-game voice overlay (needs Vencord or Equicord)
-    corner: 'top-right', // 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+    x: 100,              // 0 = left edge, 100 = right edge of the screen
+    y: 0,                // 0 = top, 100 = bottom
     size: 'medium',      // 'small' | 'medium' | 'large'
     onlyTalking: false,
     opacity: 0.78,

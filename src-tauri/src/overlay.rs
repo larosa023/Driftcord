@@ -46,7 +46,7 @@ fn build(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     Ok(w)
 }
 
-fn place(app: &AppHandle, w: &tauri::WebviewWindow, corner: &str, scale: f64, rows: u32) {
+fn place(app: &AppHandle, w: &tauri::WebviewWindow, xp: f64, yp: f64, scale: f64, rows: u32) {
     let Some(mon) = app.primary_monitor().ok().flatten().or_else(|| w.current_monitor().ok().flatten()) else { return };
     let sf = mon.scale_factor();
     let (mp, ms) = (mon.position(), mon.size());
@@ -54,21 +54,22 @@ fn place(app: &AppHandle, w: &tauri::WebviewWindow, corner: &str, scale: f64, ro
     let lh = 14.0 + f64::from(rows) * (34.0 * scale + 6.0);
     let (pw, ph) = ((lw * sf).round() as i32, (lh * sf).round() as i32);
     let margin = (18.0 * sf).round() as i32;
-    let x = if corner.ends_with("left") { mp.x + margin } else { mp.x + ms.width as i32 - pw - margin };
-    let y = if corner.starts_with("top") { mp.y + margin } else { mp.y + ms.height as i32 - ph - margin };
+    // xp / yp are 0..100: how far across / down the free space the overlay sits.
+    let free_w = (ms.width as i32 - pw - 2 * margin).max(0) as f64;
+    let free_h = (ms.height as i32 - ph - 2 * margin).max(0) as f64;
+    let x = mp.x + margin + (free_w * xp / 100.0).round() as i32;
+    let y = mp.y + margin + (free_h * yp / 100.0).round() as i32;
     let _ = w.set_size(PhysicalSize::new(pw as u32, ph as u32));
     let _ = w.set_position(PhysicalPosition::new(x, y));
     crate::log_event(app, &format!("overlay: placed {pw}x{ph} at {x},{y} on {}x{} (scale {sf})", ms.width, ms.height));
 }
 
 /// Show (or hide) the overlay with a new state. `rows` sizes the window to the list.
-pub fn update(app: &AppHandle, state: String, show: bool, corner: &str, scale: f64, rows: u32) -> Result<(), String> {
-    crate::log_event(app, &format!("overlay: update show={show} rows={rows} corner={corner}"));
+pub fn update(app: &AppHandle, state: String, show: bool, xp: f64, yp: f64, scale: f64, rows: u32) -> Result<(), String> {
+    crate::log_event(app, &format!("overlay: update show={show} rows={rows} at {xp:.0}%,{yp:.0}%"));
+    let (xp, yp) = (xp.clamp(0.0, 100.0), yp.clamp(0.0, 100.0));
     if state.len() > 40_000 {
         return Err("overlay state too large".into());
-    }
-    if !matches!(corner, "top-left" | "top-right" | "bottom-left" | "bottom-right") {
-        return Err("bad corner".into());
     }
     *LAST.lock().unwrap_or_else(|e| e.into_inner()) = state;
     let existing = app.get_webview_window(LABEL);
@@ -92,7 +93,7 @@ pub fn update(app: &AppHandle, state: String, show: bool, corner: &str, scale: f
             }
         },
     };
-    place(app, &w, corner, scale, rows.min(13));
+    place(app, &w, xp, yp, scale, rows.min(13));
     let _ = w.eval(&push_js());
     if !w.is_visible().unwrap_or(false) {
         let _ = w.show();

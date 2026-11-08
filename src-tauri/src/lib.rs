@@ -176,8 +176,8 @@ struct Active {
 /// In-game voice overlay (see overlay.rs). The page sends the list; this shows it.
 /// Async on purpose: creating a window from a synchronous command deadlocks on Windows.
 #[tauri::command]
-async fn overlay_update(app: AppHandle, state: String, show: bool, corner: String, scale: f64, rows: u32) -> Result<(), String> {
-    overlay::update(&app, state, show, &corner, scale, rows)
+async fn overlay_update(app: AppHandle, state: String, show: bool, x: f64, y: f64, scale: f64, rows: u32) -> Result<(), String> {
+    overlay::update(&app, state, show, x, y, scale, rows)
 }
 
 #[tauri::command]

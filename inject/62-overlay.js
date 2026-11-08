@@ -68,7 +68,8 @@ const voiceOverlay = (() => {
 
   const cfg = () => ({
     on: store.get('overlay.enabled') !== false,
-    corner: store.get('overlay.corner') || 'top-right',
+    x: Number.isFinite(Number(store.get('overlay.x'))) ? Number(store.get('overlay.x')) : 100,
+    y: Number.isFinite(Number(store.get('overlay.y'))) ? Number(store.get('overlay.y')) : 0,
     scale: { small: 0.85, medium: 1, large: 1.25 }[store.get('overlay.size')] || 1,
     onlyTalking: !!store.get('overlay.onlyTalking'),
     opacity: Number(store.get('overlay.opacity')) || 0.78,
@@ -76,11 +77,11 @@ const voiceOverlay = (() => {
 
   function send(rows, show, c, more = 0) {
     const state = JSON.stringify({ rows, more, scale: c.scale, opacity: c.opacity, dimQuiet: !c.onlyTalking });
-    const key = state + '|' + show + '|' + c.corner;
+    const key = state + '|' + show + '|' + c.x + ',' + c.y;
     if (key === lastKey) return;
     lastKey = key;
     info.shown = show && rows.length > 0;
-    bridge.invoke('overlay_update', { state, show, corner: c.corner, scale: c.scale, rows: rows.length + (more ? 1 : 0) })
+    bridge.invoke('overlay_update', { state, show, x: c.x, y: c.y, scale: c.scale, rows: rows.length + (more ? 1 : 0) })
       .catch((e) => { info.note = 'overlay failed: ' + errText(e); });
   }
 
@@ -143,7 +144,7 @@ const voiceOverlay = (() => {
     clearTimeout(previewTimer);
     lastKey = '';
     const state = JSON.stringify({ rows, more: 0, scale: c.scale, opacity: c.opacity, dimQuiet: true });
-    bridge.invoke('overlay_update', { state, show: true, corner: c.corner, scale: c.scale, rows: rows.length })
+    bridge.invoke('overlay_update', { state, show: true, x: c.x, y: c.y, scale: c.scale, rows: rows.length })
       .then(() => { info.note = 'preview shown'; log('app accepted it'); })
       .catch((e) => { info.note = 'overlay failed: ' + errText(e); log('failed: ' + errText(e)); toast('The overlay could not open', { sub: errText(e).slice(0, 160), duration: 9000 }); });
     previewTimer = setTimeout(() => { previewTimer = 0; lastKey = ''; if (active) tick(); else bridge.invoke('overlay_close').catch(() => {}); }, 6000);
