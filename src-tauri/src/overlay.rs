@@ -63,6 +63,7 @@ fn place(app: &AppHandle, w: &tauri::WebviewWindow, corner: &str, scale: f64, ro
 
 /// Show (or hide) the overlay with a new state. `rows` sizes the window to the list.
 pub fn update(app: &AppHandle, state: String, show: bool, corner: &str, scale: f64, rows: u32) -> Result<(), String> {
+    crate::log_event(app, &format!("overlay: update show={show} rows={rows} corner={corner}"));
     if state.len() > 40_000 {
         return Err("overlay state too large".into());
     }

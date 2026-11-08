@@ -187,6 +187,24 @@ fn run_trim(app: &AppHandle) {
     }
 }
 
+/// "Free memory now": release WebView2's caches immediately, then go back to normal
+/// a few seconds later if the window is in front.
+pub fn free_now(app: &AppHandle) {
+    let Some(w) = app.get_webview_window(crate::MAIN) else { return };
+    let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(true)");
+    trim(&w, Trim::Light);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(5));
+        if let Some(w) = app.get_webview_window(crate::MAIN) {
+            if w.is_focused().unwrap_or(false) {
+                trim(&w, Trim::None);
+                let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(false)");
+            }
+        }
+    });
+}
+
 /// Window is back: undo any trimming right away.
 pub fn on_shown(app: &AppHandle) {
     GENERATION.fetch_add(1, Ordering::SeqCst);

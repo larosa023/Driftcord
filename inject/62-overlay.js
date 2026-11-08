@@ -130,7 +130,9 @@ const voiceOverlay = (() => {
 
   /** Shows sample people for a few seconds so you can see placement and size. */
   function preview() {
-    if (!bridge.available()) return;
+    const log = (t) => { try { if (bridge.available()) bridge.invoke('log_page_event', { line: 'overlay preview: ' + t }).catch(() => {}); } catch (_) {} };
+    log('clicked, bridge=' + bridge.available());
+    if (!bridge.available()) { toast('The overlay needs the Driftcord app', { duration: 5000 }); return; }
     const c = cfg();
     const self = me();
     const rows = [
@@ -142,8 +144,8 @@ const voiceOverlay = (() => {
     lastKey = '';
     const state = JSON.stringify({ rows, more: 0, scale: c.scale, opacity: c.opacity, dimQuiet: true });
     bridge.invoke('overlay_update', { state, show: true, corner: c.corner, scale: c.scale, rows: rows.length })
-      .then(() => { info.note = 'preview shown'; })
-      .catch((e) => { info.note = 'overlay failed: ' + errText(e); toast('The overlay could not open', { sub: errText(e).slice(0, 160), duration: 9000 }); });
+      .then(() => { info.note = 'preview shown'; log('app accepted it'); })
+      .catch((e) => { info.note = 'overlay failed: ' + errText(e); log('failed: ' + errText(e)); toast('The overlay could not open', { sub: errText(e).slice(0, 160), duration: 9000 }); });
     previewTimer = setTimeout(() => { previewTimer = 0; lastKey = ''; if (active) tick(); else bridge.invoke('overlay_close').catch(() => {}); }, 6000);
   }
 

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-free-memory"
+description = "Enables the free_memory command without any pre-configured scope."
+commands.allow = ["free_memory"]
+
+[[permission]]
+identifier = "deny-free-memory"
+description = "Denies the free_memory command without any pre-configured scope."
+commands.deny = ["free_memory"]

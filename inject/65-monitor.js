@@ -88,6 +88,11 @@ function memoryCard() {
       h('div', { class: 'row' }, h('span', { class: 'label' }, 'Page size',
         h('span', { class: 'desc' }, `${nodesTrend >= 0 ? '+' : ''}${Math.round(nodesTrend)} elements/min`)),
         h('b', {}, s.nodes.toLocaleString() + ' elements')),
+      h('div', { class: 'btns', style: 'margin:6px 0' }, h('button', { class: 'btn', onclick: (e) => {
+        const b = e.currentTarget; b.disabled = true; b.textContent = 'Releasing…';
+        bridge.invoke('free_memory').catch(() => {});
+        setTimeout(() => { b.disabled = false; b.textContent = 'Free memory now'; toast('Released what Windows could reclaim', { duration: 4000 }); }, 2500);
+      } }, 'Free memory now')),
       h('p', { class: 'hint' }, verdict + ' Task Manager also counts images, video and graphics memory, which aren\'t shown here.'),
     );
   };

@@ -185,6 +185,11 @@ async fn overlay_close(app: AppHandle) {
     overlay::close(&app);
 }
 
+#[tauri::command]
+fn free_memory(app: AppHandle) {
+    lean::free_now(&app);
+}
+
 /// "Start with Windows" (opens quietly in the tray).
 #[tauri::command]
 fn get_autostart(app: AppHandle) -> bool {
@@ -707,6 +712,7 @@ pub fn run() {
             save_url,
             overlay_update,
             overlay_close,
+            free_memory,
             get_autostart,
             set_autostart,
             read_net_events,

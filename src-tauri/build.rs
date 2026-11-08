@@ -13,6 +13,7 @@ const COMMANDS: &[&str] = &[
     "save_url",
     "overlay_update",
     "overlay_close",
+    "free_memory",
     "get_autostart",
     "set_autostart",
     "read_net_events",

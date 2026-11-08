@@ -23,6 +23,7 @@
     "allow-save-url",
     "allow-overlay-update",
     "allow-overlay-close",
+    "allow-free-memory",
     "allow-get-autostart",
     "allow-set-autostart",
     "allow-read-net-events",

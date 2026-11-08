@@ -4,6 +4,13 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.45', date: '2026-11-08', title: 'Memory and overlay diagnostics',
+    items: [
+      ['new', 'About → Memory: a "Free memory now" button that releases Windows-reclaimable memory right away.'],
+      ['improved', 'The voice overlay now records each step (and shows an error if it fails), so a problem can be traced.'],
+    ],
+  },
+  {
     version: '0.4.44', date: '2026-11-06', title: 'Overlay fix',
     items: [
       ['fixed', 'The voice overlay preview did not open on Windows: the app was creating its window in a way Windows can deadlock on. It now opens correctly, and shows an error message if it still can\'t.'],
