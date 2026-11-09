@@ -34,7 +34,15 @@ function openExternal(href) {
 
 // window.open: Discord uses it after its warning, and Vencord's right-click
 // "Open Link" does too. Open in the browser and hand back a stand-in window.
-window.open = function (url) {
+window.open = function (url, target, features) {
+  // Discord's own pop-outs (stream viewer, call, chat) are real windows that
+  // Discord renders into: they carry a features string and/or a discord.com
+  // address. Give those to the app, which opens them as Driftcord windows.
+  const wantsWindow = features && /(width|height|left|top|toolbar|menubar|location|status|resizable|popup)/i.test(String(features)); // not just 'noopener'
+  const pu = url ? parseLink(url) : null;
+  if (wantsWindow || (pu && DISCORD_HOST.test(pu.hostname) && /^\/popout\b/.test(pu.pathname))) {
+    return realWindowOpen.apply(this, arguments);
+  }
   if (url && String(url) !== 'about:blank') {
     const u = parseLink(url);
     if (u && /^(https?|mailto):$/.test(u.protocol) && openExternal(u.href)) return standInWindow();

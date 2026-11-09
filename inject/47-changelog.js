@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.48', date: '2026-11-08', title: 'Pop-out viewer, for real',
+    items: [
+      ['fixed', 'Pop Out Stream now opens a Driftcord window. In 0.4.47 a page-side link handler sent it to your browser (a blank page) before the app could open the window.'],
+    ],
+  },
+  {
     version: '0.4.47', date: '2026-11-08', title: 'Pop-out windows',
     items: [
       ['fixed', 'Discord\'s pop-out viewer (and other pop-outs) now opens in its own window instead of your browser. Other links still open in your browser.'],
