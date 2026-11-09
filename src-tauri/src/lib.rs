@@ -827,7 +827,7 @@ pub fn run() {
                     }
                 })
                 // Links with target=_blank / window.open: open in the default browser.
-                .on_new_window(move |url, features| {
+                .on_new_window(move |url, _features| {
                     log_event(&popup_handle, &format!("new window: {url}"));
                     // Discord's own pop-outs (stream viewer, video, call) open a blank
                     // window or a discord.com page that Discord then fills in: give them
@@ -835,32 +835,10 @@ pub fn run() {
                     let discord_popout = url.as_str() == "about:blank"
                         || (url.scheme() == "https" && url.host_str() == Some("discord.com"));
                     if discord_popout {
-                        static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-                        let label = format!("popout-{}", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
-                        let handle = popup_handle.clone();
-                        log_event(&handle, &format!("pop-out building as {label}"));
-                        // about:blank, not the pop-out address: the new window gets its content
-                        // from the opener (Discord fills it in); navigating it ourselves leaves
-                        // it empty and stuck.
-                        let built = WebviewWindowBuilder::new(&popup_handle, &label, WebviewUrl::External("about:blank".parse().unwrap()))
-                            .title("Discord")
-                            .window_features(features)
-                            .on_document_title_changed(|w, title| {
-                                if !title.trim().is_empty() {
-                                    let _ = w.set_title(&title);
-                                }
-                            })
-                            .build();
-                        return match built {
-                            Ok(window) => {
-                                log_event(&handle, &format!("pop-out opened as {label}"));
-                                NewWindowResponse::Create { window }
-                            }
-                            Err(e) => {
-                                log_event(&handle, &format!("pop-out failed: {e}"));
-                                NewWindowResponse::Deny
-                            }
-                        };
+                        // Let WebView2 open the window itself. Building one of our own from
+                        // inside this callback hangs the app on Windows (0.4.47-0.4.49).
+                        log_event(&popup_handle, "pop-out: letting WebView2 open it");
+                        return NewWindowResponse::Allow;
                     }
                     open_external(&popup_handle, &url);
                     NewWindowResponse::Deny

@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.50', date: '2026-11-08', title: 'Pop-out, another route',
+    items: [
+      ['fixed', 'Pop-out windows are now opened by the browser engine itself, which avoids the freeze from 0.4.47 to 0.4.49.'],
+    ],
+  },
+  {
     version: '0.4.49', date: '2026-11-08', title: 'Pop-out fix',
     items: [
       ['fixed', 'The pop-out viewer window opened empty and couldn\'t be closed. It now starts the way Discord expects, so the stream shows up in it.'],
