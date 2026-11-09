@@ -838,7 +838,11 @@ pub fn run() {
                         static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
                         let label = format!("popout-{}", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
                         let handle = popup_handle.clone();
-                        let built = WebviewWindowBuilder::new(&popup_handle, &label, WebviewUrl::External(url.clone()))
+                        log_event(&handle, &format!("pop-out building as {label}"));
+                        // about:blank, not the pop-out address: the new window gets its content
+                        // from the opener (Discord fills it in); navigating it ourselves leaves
+                        // it empty and stuck.
+                        let built = WebviewWindowBuilder::new(&popup_handle, &label, WebviewUrl::External("about:blank".parse().unwrap()))
                             .title("Discord")
                             .window_features(features)
                             .on_document_title_changed(|w, title| {
