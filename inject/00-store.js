@@ -81,7 +81,7 @@ const store = (() => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try { LS && LS.setItem(STORE_KEY, JSON.stringify(data)); } catch (_) { /* storage full or blocked */ }
-    }, 150);
+    }, 250);
   };
 
   return {

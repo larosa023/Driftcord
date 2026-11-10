@@ -312,7 +312,7 @@ const labels = (() => {
       try { scan(); } catch (e) { stats.note = 'error: ' + (e && e.message || e); }
       // While a stream is up, keep a fresh snapshot on disk for the dev.
       if (liveShare()) saveDiagnostics(false);
-    }, 1500);
+    }, 3000);
   }
   window.driftcordFixLabels = scan;
   window.driftcordStreamDiag = diagnostics;

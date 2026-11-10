@@ -225,9 +225,9 @@ function startTopbar() {
       ensureTopbarButton();
       misses = topbarEls.size && [...topbarEls.values()].some((el) => el.isConnected) ? 0 : misses + 1;
     }
-    setTimeout(tick, misses > 20 ? 5000 : 500);
+    setTimeout(tick, misses > 20 ? 5000 : 1000);
   };
-  setTimeout(tick, 500);
+  setTimeout(tick, 1000);
   store.onChange((path) => {
     if (['showTopbarButton', 'showNewsButton', 'news.seen', '*'].includes(path)) ensureTopbarButton(true);
   });

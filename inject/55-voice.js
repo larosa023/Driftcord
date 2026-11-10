@@ -24,7 +24,7 @@ function updateCallState() {
   // close() fires no events, so double-check now and then while a call is up.
   clearInterval(callCheck);
   if (now) {
-    callCheck = setInterval(updateCallState, 5000);
+    callCheck = setInterval(updateCallState, 10000);
     // Discord loads its call styles on demand: find the ring once they're in.
     setTimeout(instantSpeakingRing, 1000);
     setTimeout(instantSpeakingRing, 6000);

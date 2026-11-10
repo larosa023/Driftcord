@@ -61,12 +61,19 @@ fn place(app: &AppHandle, w: &tauri::WebviewWindow, xp: f64, yp: f64, scale: f64
     let y = mp.y + margin + (free_h * yp / 100.0).round() as i32;
     let _ = w.set_size(PhysicalSize::new(pw as u32, ph as u32));
     let _ = w.set_position(PhysicalPosition::new(x, y));
-    crate::log_event(app, &format!("overlay: placed {pw}x{ph} at {x},{y} on {}x{} (scale {sf})", ms.width, ms.height));
 }
+
+static GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Show (or hide) the overlay with a new state. `rows` sizes the window to the list.
 pub fn update(app: &AppHandle, state: String, show: bool, xp: f64, yp: f64, scale: f64, rows: u32) -> Result<(), String> {
-    crate::log_event(app, &format!("overlay: update show={show} rows={rows} at {xp:.0}%,{yp:.0}%"));
+    // Commands run on several threads: keep updates and close in order.
+    let _gate = GATE.lock().unwrap_or_else(|e| e.into_inner());
+    // Log only when the overlay is shown or hidden, not on every speaking change.
+    static LAST_SHOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if LAST_SHOW.swap(show, std::sync::atomic::Ordering::Relaxed) != show {
+        crate::log_event(app, &format!("overlay: {} ({rows} rows, {xp:.0}%,{yp:.0}%)", if show { "shown" } else { "hidden" }));
+    }
     let (xp, yp) = (xp.clamp(0.0, 100.0), yp.clamp(0.0, 100.0));
     if state.len() > 40_000 {
         return Err("overlay state too large".into());
@@ -103,6 +110,7 @@ pub fn update(app: &AppHandle, state: String, show: bool, xp: f64, yp: f64, scal
 
 /// Remove the overlay window completely (frees its memory).
 pub fn close(app: &AppHandle) {
+    let _gate = GATE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(w) = app.get_webview_window(LABEL) {
         let _ = w.destroy();
     }

@@ -118,7 +118,7 @@ const voiceOverlay = (() => {
     clearInterval(poll); poll = 0;
     if (active) {
       subscribe();
-      poll = setInterval(() => { try { tick(); } catch (_) {} }, 800);
+      poll = setInterval(() => { try { tick(); } catch (_) {} }, 2500);
       setTimeout(tick, 300);
     } else {
       speaking.clear(); lastKey = ''; info.shown = false; info.note = 'idle';

@@ -658,7 +658,7 @@ mod win {
                             let step = sw as f64 / ow as f64;
                             self.xmap = (0..ow)
                                 .map(|ox| {
-                                    let fx = ((ox as f64 + 0.5) * step - 0.5).clamp(0.0, (sw - 2) as f64);
+                                    let fx = ((ox as f64 + 0.5) * step - 0.5).max(0.0).min(sw.saturating_sub(2) as f64);
                                     (fx as u32, ((fx - fx.floor()) * 256.0) as u32)
                                 })
                                 .collect();

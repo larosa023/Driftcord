@@ -26,6 +26,8 @@ const PANEL_CSS = `
   transition: transform .22s cubic-bezier(.2,.8,.2,1); z-index: 2147483647;
   display: flex; flex-direction: column;
   font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+.scrim, .drawer { visibility: hidden; transition-property: opacity, transform, visibility; }
+.open .scrim, .open .drawer { visibility: visible; }
 .open .scrim { opacity: 1; pointer-events: auto; }
 .open .drawer { transform: none; }
 

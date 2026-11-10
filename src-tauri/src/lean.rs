@@ -86,6 +86,8 @@ pub fn browser_args(lean: bool, js_small: bool, gpu_in_process: bool, gpu_boost:
 
 /// Bumped every time the window is shown/hidden, so a pending trim can tell it's stale.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+/// True while the page is visibly trimmed, so coming back to front can skip the undo work.
+static TRIMMED: AtomicBool = AtomicBool::new(false);
 
 /// Window was hidden or minimized: full trim after the configured delay.
 pub fn on_hidden(app: &AppHandle) {
@@ -110,7 +112,9 @@ pub fn set_in_call(app: &AppHandle, on: bool) {
             GENERATION.fetch_add(1, Ordering::SeqCst);
             trim(&w, Trim::None);
         }
-    } else if !hidden && !w.is_focused().unwrap_or(true) {
+    } else if hidden {
+        on_hidden(app); // call ended while hidden: the skipped trim is due now
+    } else if !w.is_focused().unwrap_or(true) {
         on_unfocused(app); // call ended while in another app: resume as usual
     }
 }
@@ -212,6 +216,9 @@ pub fn free_now(app: &AppHandle) {
 /// Window is back: undo any trimming right away.
 pub fn on_shown(app: &AppHandle) {
     GENERATION.fetch_add(1, Ordering::SeqCst);
+    if !TRIMMED.load(Ordering::Relaxed) {
+        return;
+    }
     if let Some(w) = app.get_webview_window(crate::MAIN) {
         trim(&w, Trim::None);
         let _ = w.eval("window.__driftcordTrim && window.__driftcordTrim(false)");
@@ -230,6 +237,7 @@ enum Trim {
 
 #[cfg(windows)]
 fn trim(window: &WebviewWindow, mode: Trim) {
+    TRIMMED.store(mode != Trim::None, Ordering::Relaxed);
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
     };
@@ -248,7 +256,9 @@ fn trim(window: &WebviewWindow, mode: Trim) {
 }
 
 #[cfg(not(windows))]
-fn trim(_window: &WebviewWindow, _mode: Trim) {}
+fn trim(_window: &WebviewWindow, mode: Trim) {
+    TRIMMED.store(mode != Trim::None, Ordering::Relaxed);
+}
 
 #[cfg(test)]
 mod tests {

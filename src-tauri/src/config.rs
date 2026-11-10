@@ -57,7 +57,15 @@ pub fn load(app: &AppHandle) -> Config {
     if let Some(c) = CACHE.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
         return c.clone();
     }
-    let raw = path(app).and_then(|p| fs::read_to_string(p).ok());
+    let raw = match path(app).map(fs::read_to_string) {
+        Some(Ok(s)) => Some(s),
+        Some(Err(e)) if e.kind() != std::io::ErrorKind::NotFound => {
+            // Locked or unreadable right now (antivirus, say): use defaults for this
+            // call but don't remember them, so a later save can't wipe the real file.
+            return Config::default();
+        }
+        _ => None,
+    };
     let cfg: Config = match raw.as_deref().map(serde_json::from_str::<Config>) {
         Some(Ok(c)) => c,
         Some(Err(_)) => {
@@ -73,7 +81,10 @@ pub fn load(app: &AppHandle) -> Config {
     cfg
 }
 
+static SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub fn save(app: &AppHandle, cfg: &Config) -> Result<(), String> {
+    let _guard = SAVE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let p = path(app).ok_or("no config directory")?;
     if let Some(dir) = p.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;

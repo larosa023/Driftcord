@@ -871,6 +871,10 @@ pub fn run() {
                     loop {
                         let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_secs(wait))).await;
                         wait = 3 * 3600;
+                        // Turned off or switched in the meantime: stop refreshing.
+                        if config::load(&h).client_mod.as_deref() != Some(id.as_str()) {
+                            break;
+                        }
                         let fresh = mods::status(&h).iter().any(|m| {
                             m.id == id.as_str() && m.installed && mods::age_secs(m.updated) < 12 * 3600
                         });
