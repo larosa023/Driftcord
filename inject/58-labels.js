@@ -221,7 +221,7 @@ const labels = (() => {
       const v = n.nodeValue;
       if (!v || v.length > 40 || !/(\d{3,4}p\b|\d{1,3}\s*fps\b)/i.test(v)) continue;
       const p = n.parentElement;
-      if (!p || p.closest('#driftcord-root,script,style')) continue;
+      if (!p || p.closest('#driftcord-root,script,style,[id^="chat-messages"],[class*="messageContent"],[class*="markup"],textarea,[role="textbox"]')) continue;
       const box = p.closest('div,span,li,button,a') || p;
       const outer = box.parentElement || box;
       if (seenBoxes.has(outer)) continue;

@@ -221,10 +221,12 @@ function startTopbar() {
   // aren't (e.g. before login, or Discord in a language we don't match).
   let misses = 0;
   const tick = () => {
-    if (!document.hidden) {
-      ensureTopbarButton();
-      misses = topbarEls.size && [...topbarEls.values()].some((el) => el.isConnected) ? 0 : misses + 1;
-    }
+    try {
+      if (!document.hidden) {
+        ensureTopbarButton();
+        misses = topbarEls.size && [...topbarEls.values()].some((el) => el.isConnected) ? 0 : misses + 1;
+      }
+    } catch (_) { misses++; }
     setTimeout(tick, misses > 20 ? 5000 : 1000);
   };
   setTimeout(tick, 1000);

@@ -21,16 +21,18 @@ function mountPanel() {
 window.__driftcordOpen = () => { mountPanel(); panel && panel.toggle(true); };
 
 function onReady() {
-  mountPanel();
-  startTopbar();
-  startTitlebar();
-  badge.start();
-  labels.start();
-  reportBackground(((THEMES[store.get('theme')] || {}).palette || {}).base1 || '#2b2d31');
-  announceUpdate();
-  announceRetiredShareMods();
-  startMonitor();
-  startUpdateChecks();
+  // One failing start-up step must not stop the rest.
+  const step = (fn) => { try { fn(); } catch (e) { console.warn('[Driftcord] start-up step failed', e); } };
+  step(mountPanel);
+  step(startTopbar);
+  step(startTitlebar);
+  step(() => badge.start());
+  step(() => labels.start());
+  step(() => reportBackground(((THEMES[store.get('theme')] || {}).palette || {}).base1 || '#2b2d31'));
+  step(announceUpdate);
+  step(announceRetiredShareMods);
+  step(startMonitor);
+  step(startUpdateChecks);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady, { once: true });
 else onReady();

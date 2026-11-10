@@ -429,7 +429,7 @@ function streamDebugCard() {
     const details = h('details', { class: 'tech', ontoggle: (e) => { streamDetailsOpen = e.currentTarget.open; } },
       h('summary', {}, 'Technical details'),
       ...[
-      row('Sharing now', d.live ? `${d.pick.w}x${d.pick.h} @ ${d.pick.fps}` : 'no'),
+      row('Sharing now', d.live && d.pick ? `${d.pick.w}x${d.pick.h} @ ${d.pick.fps}` : 'no'),
       row('Discord internals reached', yes(d.store), d.how ? 'MediaEngineStore via ' + d.how : 'MediaEngineStore via webpack'),
       row('Stream connection found', yes(d.conn), d.live ? (d.userStore ? 'by your user id' : 'UserStore not found; matched by track') : 'Only while you\'re live'),
       row('Quality method patched', yes(d.method), 'getDefaultGoliveQuality'),

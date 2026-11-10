@@ -188,7 +188,7 @@ function createPanel() {
         try { e.target.checked = await bridge.invoke('set_autostart', { on: want }); }
         catch (_) { e.target.checked = !want; toast('Could not change start-up setting', { duration: 5000 }); }
       } });
-    if (bridge.available()) bridge.invoke('get_autostart').then((on) => { input.checked = !!on; input.disabled = false; }).catch(() => {});
+    if (bridge.available()) bridge.invoke('get_autostart').then((on) => { input.checked = !!on; input.disabled = false; }).catch(() => { input.disabled = false; });
     return h('label', { class: 'row' },
       h('span', { class: 'label' }, 'Start with Windows', h('span', { class: 'desc' }, 'Opens quietly in the tray when you sign in')),
       h('span', { class: 'switch' }, input));
@@ -377,9 +377,19 @@ function createPanel() {
               for (const [k, v] of Object.entries(parsed)) {
                 if (!(k in DEFAULTS)) continue;
                 const base = DEFAULTS[k];
-                const ok = base && typeof base === 'object' ? v && typeof v === 'object' && !Array.isArray(v) : typeof v === typeof base || base === null || base === '';
-                if (ok) store.set(k, base && typeof base === 'object' ? deepMerge(base, v) : v);
+                const isObj = base && typeof base === 'object';
+                const ok = isObj ? v && typeof v === 'object' && !Array.isArray(v) : (base === null ? v === null || typeof v === 'string' : typeof v === typeof base);
+                if (!ok) continue;
+                if (!isObj) { store.set(k, v); continue; }
+                // Keep only values of the right type, on top of what's set now.
+                const clean = {};
+                for (const [ik, iv] of Object.entries(v)) {
+                  const dv = base[ik];
+                  if (dv === undefined || dv === null || typeof dv === typeof iv) clean[ik] = iv;
+                }
+                store.set(k, deepMerge(store.get(k) || base, clean));
               }
+              if (typeof applyDebloatDefaults === 'function') applyDebloatDefaults();
               status.textContent = 'Settings imported.'; render();
             } catch (_) { status.textContent = 'Clipboard doesn\'t contain Driftcord settings.'; }
           } }, 'Import from clipboard'),
@@ -555,6 +565,7 @@ function createPanel() {
   drawer.append(header, nav, main);
 
   function render() {
+    if (!wrap.classList.contains('open')) return; // closed: nothing to draw, nothing to keep refreshing
     syncColors();
     nav.replaceChildren(...Object.keys(tabs).map((name) =>
       h('button', { role: 'tab', 'aria-selected': String(name === current),

@@ -478,8 +478,10 @@ fn unique_download_path(dir: &std::path::Path, name: &std::ffi::OsStr) -> std::p
 }
 
 /// The page is in (or left) a voice/video call.
+// Async: it takes the overlay lock, which a window being created on another thread holds
+// while it waits for the main thread. A sync command (main thread) would deadlock there.
 #[tauri::command]
-fn set_in_call(app: AppHandle, on: bool) {
+async fn set_in_call(app: AppHandle, on: bool) {
     if !on {
         overlay::close(&app);
     }

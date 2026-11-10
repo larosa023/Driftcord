@@ -177,7 +177,7 @@ function ensureTitlebar() {
 
 function startTitlebar() {
   if (!bridge.available()) return;
-  bridge.invoke('get_info').then((info) => {
+  const onInfo = (info) => {
     if (info.nativeTitlebar) return; // using Windows' own title bar
     ownStyle('driftcord-winctl').textContent = WIN_CSS;
     const p = ui();
@@ -204,5 +204,8 @@ function startTitlebar() {
       rt = setTimeout(() => bridge.invoke('win_is_maximized').then(setMaximized).catch(() => {}), 150);
     });
     document.addEventListener('fullscreenchange', () => { setMaximized(winMaximized); ensureTitlebar(); });
-  }).catch(() => {});
+  };
+  // If the app is slow to answer, try again rather than leave the window without controls.
+  const load = (n) => bridge.invoke('get_info').then(onInfo, () => { if (n < 4) setTimeout(() => load(n + 1), 1500 * (n + 1)); }).catch(() => {});
+  load(0);
 }

@@ -145,7 +145,7 @@ document.addEventListener('pointerover', (e) => {
   if (!box || box === lastAttachBox) return;
   lastAttachBox = box;
   const l = [...box.querySelectorAll('a[href]')].find((x) => isCdnAttachment(x.href));
-  if (l) lastAttachLink = l;
+  lastAttachLink = l || null;
 }, true);
 
 function rescueDownload(el, a, btn, inAttach) {

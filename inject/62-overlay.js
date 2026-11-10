@@ -147,12 +147,12 @@ const voiceOverlay = (() => {
     bridge.invoke('overlay_update', { state, show: true, x: c.x, y: c.y, scale: c.scale, rows: rows.length })
       .then(() => { info.note = 'preview shown'; log('app accepted it'); })
       .catch((e) => { info.note = 'overlay failed: ' + errText(e); log('failed: ' + errText(e)); toast('The overlay could not open', { sub: errText(e).slice(0, 160), duration: 9000 }); });
-    previewTimer = setTimeout(() => { previewTimer = 0; lastKey = ''; if (active) tick(); else bridge.invoke('overlay_close').catch(() => {}); }, 6000);
+    previewTimer = setTimeout(() => { previewTimer = 0; lastKey = 'preview'; if (active) tick(); else bridge.invoke('overlay_close').catch(() => {}); }, 6000);
   }
 
   for (const ev of ['focus', 'blur']) window.addEventListener(ev, () => { if (active) setTimeout(tick, 120); });
   document.addEventListener('visibilitychange', () => { if (active) setTimeout(tick, 120); });
-  store.onChange((path) => { if (path === '*' || String(path).startsWith('overlay.')) refresh(); });
+  store.onChange((path) => { if (path === '*' || path === 'overlay' || String(path).startsWith('overlay.')) refresh(); });
 
   return { callChanged, refresh, preview, info };
 })();

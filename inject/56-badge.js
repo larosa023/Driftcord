@@ -40,7 +40,7 @@ const badge = (() => {
     if (n === last) return;
     last = n;
     if (!bridge.available()) { last = 0; return; }
-    bridge.invoke('set_badge', { rgba: n === 0 ? [] : draw(n), width: 32, height: 32 }).catch(() => { last = 0; });
+    bridge.invoke('set_badge', { rgba: n === 0 ? [] : draw(n), width: 32, height: 32 }).catch(() => { last = -2; }); // never equal to a real count: try again
   }
 
   function start() {

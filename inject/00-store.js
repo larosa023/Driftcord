@@ -5,7 +5,7 @@
 const BOOT_T0 = performance.now();
 const LS = window.localStorage;
 const STORE_KEY = 'driftcord:settings';
-const VERSION = '0.4.50';
+const VERSION = '0.4.51';
 // Whether Driftcord had run before (settings existed) when this page loaded.
 const HAD_SETTINGS = (() => { try { return !!(LS && LS.getItem(STORE_KEY)); } catch (_) { return false; } })();
 
@@ -84,6 +84,9 @@ const store = (() => {
     }, 250);
   };
 
+  // Don't lose a change made just before a reload or restart.
+  window.addEventListener('pagehide', () => { try { if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; LS && LS.setItem(STORE_KEY, JSON.stringify(data)); } } catch (_) { /* ignore */ } });
+
   return {
     get(path) {
       return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), data);
@@ -94,7 +97,7 @@ const store = (() => {
       for (const k of keys.slice(0, -1)) o = o[k] ??= {};
       o[keys.at(-1)] = value;
       save();
-      listeners.forEach((fn) => fn(path, value));
+      listeners.forEach((fn) => { try { fn(path, value); } catch (e) { console.warn('[Driftcord] setting listener failed', e); } });
     },
     all: () => data,
     reset() {

@@ -75,7 +75,7 @@ document.addEventListener('keydown', (e) => {
 
 // Called by the app after a few minutes in the tray, and again when it's back.
 window.__driftcordTrim = (away) => {
-  if (!away) return;
+  if (!away || !store.get('memory.noAutoplay')) return; // only pause what we could resume by click
   // Stop anything decoding off-screen (live call media is left alone).
   for (const v of document.querySelectorAll('video')) {
     // Leave live media and anything you deliberately started alone.

@@ -44,10 +44,12 @@ async function installUpdate(el) {
   installing = true;
   if (el) el.querySelectorAll('button').forEach((b) => (b.disabled = true));
   if (updateToast) updateToast.update('Downloading update…', 'Driftcord will restart when it\'s ready.');
+  else updateToast = toast('Downloading update…', { sub: 'Driftcord will restart when it\'s ready.', duration: 600000 });
   try {
     await bridge.invoke('install_update'); // restarts the app on success
   } catch (e) {
     installing = false;
+    if (el) el.querySelectorAll('button').forEach((b) => (b.disabled = false));
     if (updateToast) updateToast.close();
     updateToast = null;
     pendingUpdate = null;

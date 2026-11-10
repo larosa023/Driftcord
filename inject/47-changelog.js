@@ -4,6 +4,24 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.51', date: '2026-11-09', title: 'Polish and efficiency',
+    items: [
+      ['improved', 'Fewer background checks while idle, in calls and in the tray, so less CPU and fewer wake-ups.'],
+      ['improved', 'Returning to Driftcord from another app does less work, and the closed settings panel no longer costs anything to draw.'],
+      ['fixed', 'The voice overlay could show stale speakers or stay on screen after a call. Its updates are now handled in order.'],
+      ['fixed', 'A hidden window now gets trimmed after a call ends, instead of keeping full memory in the tray.'],
+      ['fixed', 'The overlay preview could stick on screen during a call.'],
+      ['fixed', 'Settings could be lost if the settings file was briefly locked or if the app restarted right after a change.'],
+      ['fixed', 'Importing settings from an older version now keeps your current choices and ignores bad values.'],
+      ['fixed', 'Update button could stay greyed out after a failed update, and now shows download progress.'],
+      ['fixed', 'Window buttons could be missing if the app was slow to start; they now retry.'],
+      ['fixed', 'Stream card could go blank after a failed source switch; two share pickers can no longer open at once.'],
+      ['fixed', 'Videos that were never auto-blocked are no longer paused when the window is idle in the tray.'],
+      ['fixed', 'Diagnostics no longer include chat text, and a stale attachment can no longer be saved by mistake.'],
+      ['fixed', 'One failing start-up step no longer stops the others. The taskbar badge now retries if clearing it fails.'],
+    ],
+  },
+  {
     version: '0.4.50', date: '2026-11-08', title: 'Pop-out, another route',
     items: [
       ['fixed', 'Pop-out windows are now opened by the browser engine itself, which avoids the freeze from 0.4.47 to 0.4.49.'],

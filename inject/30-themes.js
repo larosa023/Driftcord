@@ -244,5 +244,5 @@ let lastBg = null;
 function reportBackground(color) {
   if (color === lastBg || !bridge.available()) return;
   lastBg = color;
-  bridge.invoke('set_background', { color }).catch(() => {});
+  bridge.invoke('set_background', { color }).catch(() => { lastBg = null; });
 }

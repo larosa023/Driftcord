@@ -636,7 +636,10 @@ if (mediaDevices && mediaDevices.getDisplayMedia) {
     discordQuality.prepare();
     let stream;
     if (await canShareNatively()) {
-      const pick = await sharePicker();
+      if (pickerBusy) throw new DOMException('A share picker is already open', 'NotAllowedError');
+      pickerBusy = true;
+      let pick;
+      try { pick = await sharePicker(); } finally { pickerBusy = false; }
       if (pick.system) stream = await systemShare(constraints);
       else {
         try {
@@ -656,6 +659,8 @@ if (mediaDevices && mediaDevices.getDisplayMedia) {
 
 // ── Ctrl+Alt+S: start (via Discord's own button) or stop sharing ─────────────
 
+let pickerBusy = false; // a picker is open: don't start a second one
+
 function findShareButton() {
   return [...document.querySelectorAll('button[aria-label], [role="button"][aria-label]')]
     .find((b) => /^share your screen$/i.test(b.getAttribute('aria-label')));
@@ -665,6 +670,7 @@ window.addEventListener('keydown', (e) => {
   if (!isShortcut(e, 'KeyS')) return;
   e.preventDefault(); e.stopPropagation();
   if (live) { stopStream(live.stream); return; }
+  if (pickerBusy) return;
   const btn = findShareButton();
   if (btn) btn.click();
   else toast('Join a voice channel to share your screen', { duration: 3500 });
