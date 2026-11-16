@@ -4,6 +4,17 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.52', date: '2026-11-15', title: 'Smoother streaming and watching',
+    items: [
+      ['fixed', 'Adaptive quality never stepped in when your PC was the bottleneck: the encoder overload also slowed the capture, which it mistook for a still screen. It now spots an overloaded encoder (time per frame, CPU limits) and eases to 1080p within seconds, keeping a steady frame rate.'],
+      ['improved', 'When a stream is eased, the capture itself sends smaller frames, so the page has less to convert and encode.'],
+      ['improved', 'Easing back up to full size only happens when the encoder can actually keep up there, so the stream no longer stutters every time it tries.'],
+      ['new', 'Smooth viewing (Share tab): if a stream you watch freezes, Driftcord buffers it a fraction of a second longer so it plays evenly, then relaxes once the connection is calm. Voice is never delayed.'],
+      ['improved', 'The quality-badge fixer no longer scans the whole chat every few seconds while you watch a stream, which could cause small regular hitches.'],
+      ['improved', 'Diagnostics now record what you receive while watching (frame rate, decoder, freezes, drops), so playback problems can be pinned down.'],
+    ],
+  },
+  {
     version: '0.4.51', date: '2026-11-09', title: 'Polish and efficiency',
     items: [
       ['improved', 'Fewer background checks while idle, in calls and in the tray, so less CPU and fewer wake-ups.'],

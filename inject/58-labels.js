@@ -111,15 +111,18 @@ const labels = (() => {
   const RES_ONLY = /^(\s*)(\d{3,4})p(\s*)$/i;
   const FPS_ONLY = /^(\s*)(\d{1,3})\s*FPS(\s*)$/i;
 
+  // Parts of the page that never hold a quality badge but hold most of its text:
+  // skipped whole, so a busy chat doesn't make every scan expensive.
+  const SKIP = 'script,style,textarea,svg,#driftcord-root,[data-list-id="chat-messages"],[aria-label="Members"],[role="textbox"],[data-list-id^="guildsnav"],#channels';
+
   function textNodes() {
     const out = [];
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
       acceptNode(n) {
+        if (n.nodeType === 1) return n.matches(SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
         const v = n.nodeValue;
         if (!v || v.length > 16 || !/\d/.test(v)) return NodeFilter.FILTER_REJECT;
-        const p = n.parentElement;
-        if (!p || p.closest('script,style,textarea,#driftcord-root')) return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
+        return n.parentElement ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       },
     });
     for (let n = walker.nextNode(); n; n = walker.nextNode()) out.push(n);
@@ -149,16 +152,19 @@ const labels = (() => {
     const h = m.h + 'p', f = niceFps(m.fps) + 'FPS';
     if (pill.combined) {
       const mm = COMBINED.exec(pill.res.nodeValue);
+      if (!mm) return false;            // Discord changed the text: find it again
       const text = mm[1] + h + mm[3] + f + mm[5];
       if (pill.res.nodeValue !== text) pill.res.nodeValue = text;
       return;
     }
     const r = RES_ONLY.exec(pill.res.nodeValue), q = FPS_ONLY.exec(pill.fps.nodeValue);
+    if (!r || !q) return false;
     const rt = r[1] + h + r[3], ft = q[1] + f + q[3];
     if (pill.res.nodeValue !== rt) pill.res.nodeValue = rt;
     if (pill.fps.nodeValue !== ft) pill.fps.nodeValue = ft;
   }
 
+  let cached = [], misses = 0, tick = 0;
   function scan() {
     stats.when = Date.now();
     if (document.hidden) { stats.note = 'window hidden'; return 0; }
@@ -166,11 +172,19 @@ const labels = (() => {
     // Only look when there is a stream to measure: a video playing, or we are sharing.
     if (!loneVideoAny() && !liveShare()) { stats.note = 'no stream playing'; return 0; }
     let fixed = 0;
-    const pills = findPills();
+    // Reuse the badges found last time while they're still on the page; look again
+    // every few scans (or right away if one went away). With none on screen, look
+    // less and less often (up to every 15 s).
+    tick++;
+    const stillThere = cached.length && cached.every((p) => p.res.isConnected && (!p.fps || p.fps.isConnected));
+    let pills;
+    if (stillThere && tick % 5 !== 0) pills = cached;
+    else if (!cached.length && tick % Math.min(5, 1 + misses) !== 0) { stats.note = 'no quality badge on screen'; return 0; }
+    else { pills = findPills(); cached = pills; misses = pills.length ? 0 : misses + 1; }
     stats.sample = '';
     for (const pill of pills) {
       const m = truthFor(pill.anchor);
-      if (m) { fixPill(pill, m); fixed++; }
+      if (m) { if (fixPill(pill, m) === false) { cached = []; continue; } fixed++; }
       else if (!stats.sample) stats.sample = (pill.res.nodeValue + (pill.fps ? ' ' + pill.fps.nodeValue : '')).trim();
     }
     stats.pills = pills.length; stats.fixed = fixed;
@@ -206,6 +220,9 @@ const labels = (() => {
     out.push('');
     out.push('— encoder timeline (newest last; sent = what leaves this PC, source = what the capture delivers) —');
     try { out.push(...discordQuality.history()); } catch (_) {}
+    out.push('');
+    out.push('— watching (streams you receive; newest last) —');
+    try { out.push(...viewerWatch.history()); } catch (_) {}
     out.push('');
     out.push('— videos —');
     for (const v of document.getElementsByTagName('video')) {
@@ -311,7 +328,7 @@ const labels = (() => {
     timer = setInterval(() => {
       try { scan(); } catch (e) { stats.note = 'error: ' + (e && e.message || e); }
       // While a stream is up, keep a fresh snapshot on disk for the dev.
-      if (liveShare()) saveDiagnostics(false);
+      if (liveShare() || (typeof viewerWatch !== 'undefined' && viewerWatch.active())) saveDiagnostics(false);
     }, 3000);
   }
   window.driftcordFixLabels = scan;

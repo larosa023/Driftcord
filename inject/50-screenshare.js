@@ -245,9 +245,17 @@ function createNativeShare(source, opts) {
   // profile as the stream connects, which must not shrink it; asking for more
   // (Discord's menu with Nitro/FakeNitro) is applied to the capture live.
   const res0 = SHARE_RES[opts.res] || SHARE_RES['1080p'];
+  // When adaptive quality eases the stream, the capture itself sends smaller frames
+  // (shrunk in the app, outside the page), so the page converts and encodes less.
+  share.capTarget = { w: res0.w, h: res0.h, fps: opts.fps };
+  share.applyCap = () => {
+    const t = share.capTarget, sc = (typeof adapt !== 'undefined' && adapt.scale) || 1;
+    bridge.invoke('capture_configure', { maxWidth: Math.round(t.w / sc), maxHeight: Math.round(t.h / sc), fps: t.fps }).catch(() => {});
+  };
   registerFloor(video, { w: res0.w, h: res0.h, fps: opts.fps }, (next) => {
     opts.fps = next.fps;
-    bridge.invoke('capture_configure', { maxWidth: next.w, maxHeight: next.h, fps: next.fps }).catch(() => {});
+    share.capTarget = next;
+    share.applyCap();
   });
   if (audio) registerFloor(audio, null, null);
 

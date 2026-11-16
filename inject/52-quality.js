@@ -281,12 +281,16 @@ window.driftcordStreamProbe = () => { discordQuality.prepare(); return { ...disc
 // shrink what is encoded a step at a time (CPU). Step back up once it has run
 // cleanly for a while. A still screen (the capture itself is slow) is not a problem.
 const ADAPT_SCALES = [1, 4 / 3, 16 / 9];
-const adaptState = { bad: 0, goodSince: 0, lastChange: 0, recoverWait: 40000, lastRecover: 0, level: 0, notes: [] };
+const adaptState = { bad: 0, goodSince: 0, lastChange: 0, recoverWait: 40000, lastRecover: 0, level: 0, lastEncMs: 0, notes: [] };
 
-function adaptApply() { for (const pc of voicePcs) tuneSenders(pc); }
+function adaptApply() {
+  // A Driftcord share is shrunk at the capture; a Windows-picker share by the encoder.
+  try { if (native && !native.ended && native.applyCap) native.applyCap(); } catch (_) {}
+  for (const pc of voicePcs) tuneSenders(pc);
+}
 
 function adaptReset() {
-  adaptState.bad = 0; adaptState.goodSince = 0; adaptState.lastChange = 0; adaptState.level = 0; adaptState.recoverWait = 40000;
+  adaptState.bad = 0; adaptState.goodSince = 0; adaptState.lastChange = 0; adaptState.level = 0; adaptState.recoverWait = 40000; adaptState.lastEncMs = 0;
   if (adapt.scale !== 1 || adapt.motion) { adapt.scale = 1; adapt.motion = false; adaptApply(); }
 }
 
@@ -296,8 +300,14 @@ function adaptTick(e, pick = pickedQuality) {
   if (!e.fps && !(e.encoded > 0)) return;   // nothing has been sent yet
   const now = Date.now();
   const want = pick.fps;
+  const budget = 1000 / want;                                     // ms per frame at the wanted rate
+  // The encoder is the bottleneck: each frame costs most of its time slot, or WebRTC
+  // reports the CPU held the stream back since the last sample. When that happens the
+  // capture slows too (same process, and frames back up), so it can't be required to keep up.
+  const heavy = (e.encMs > 0 && e.encMs > budget * 0.8) || e.why === 'cpu' || (e.cpuDelta || 0) > 800;
+  if (e.encMs > 0) adaptState.lastEncMs = e.encMs;
   const captureOk = e.srcFps < 0 || e.srcFps >= want * 0.8;     // frames are being delivered
-  const slow = captureOk && e.fps < want * 0.7;
+  const slow = (captureOk || heavy) && e.fps < want * (heavy ? 0.85 : 0.7);
   adaptState.bad = slow ? adaptState.bad + 1 : 0;
   if (slow) adaptState.goodSince = 0;
   else if (!adaptState.goodSince && e.fps >= want * 0.9) adaptState.goodSince = now;
@@ -317,6 +327,13 @@ function adaptTick(e, pick = pickedQuality) {
     return;
   }
   const eased = adapt.scale > 1 || adapt.motion;
+  // Don't step back up into a size the encoder can't hold: encode cost grows with
+  // the pixel count, so predict it and stay put if it would be over budget again.
+  if (eased && adapt.scale > 1 && adaptState.lastEncMs > 0) {
+    const up = ADAPT_SCALES[Math.max(0, adaptState.level - 1)];
+    const predicted = adaptState.lastEncMs * (adapt.scale / up) ** 2;
+    if (predicted > budget * 0.75) { adaptState.goodSince = 0; return; }
+  }
   if (eased && adaptState.goodSince && now - adaptState.goodSince >= adaptState.recoverWait && now - adaptState.lastChange > 8000) {
     adaptState.lastChange = now; adaptState.lastRecover = now; adaptState.goodSince = 0;
     if (adapt.scale > 1) { adaptState.level = Math.max(0, adaptState.level - 1); adapt.scale = ADAPT_SCALES[adaptState.level]; }
@@ -338,7 +355,11 @@ function recordEnc(e) {
   // Average time to encode one frame since the last sample: the real cost of this codec.
   let encMs = -1;
   if (encPrev && e.encoded > encPrev.encoded) encMs = Math.round(((e.encTime - encPrev.encTime) / (e.encoded - encPrev.encoded)) * 1000);
-  encPrev = { encoded: e.encoded, encTime: e.encTime };
+  // How long, since the last sample, WebRTC says the CPU held the stream back.
+  const cpuNow = e.limitMs ? e.limitMs.cpu : 0;
+  e.cpuDelta = encPrev && encPrev.cpu != null ? Math.max(0, cpuNow - encPrev.cpu) : 0;
+  e.encMs = encMs;
+  encPrev = { encoded: e.encoded, encTime: e.encTime, cpu: cpuNow };
   encHistory.push(`${new Date(now).toISOString().slice(11, 19)} sent=${e.w}x${e.h}@${e.fps} source=${e.srcW}x${e.srcH}@${e.srcFps} encodeMs=${encMs} why=${e.why} target=${e.target}kbps est=${e.est}kbps pli=${e.pli} nack=${e.nack}`);
   if (encHistory.length > 90) encHistory.shift();
 }
@@ -381,6 +402,84 @@ async function refreshEncoderStats() {
   } catch (_) { encStats = null; }
   encBusy = false;
 }
+
+// ── Watching streams ─────────────────────────────────────────────────────────
+// What arrives from other people's streams: frame rate, freezes, drops, decode time.
+// If playback freezes because packets arrive unevenly, give the video a slightly
+// deeper buffer (a fraction of a second of delay) so it plays smoothly; relax it
+// again once the connection has been calm for a minute. Voice is never touched.
+const viewerWatch = (() => {
+  const history = [];
+  const prev = new WeakMap();
+  const calm = new WeakMap();     // receiver -> time of last freeze
+  let timer = 0, busy = false, lastSample = 0;
+  const line = (s) => { history.push(`${new Date().toISOString().slice(11, 19)} ${s}`); if (history.length > 90) history.shift(); };
+
+  function tuneBuffer(rc, v) {
+    if (store.get('screenshare.smoothViewing') === false || !('jitterBufferTarget' in rc)) return;
+    const now = Date.now();
+    const cur = rc.jitterBufferTarget || 0;
+    try {
+      if (v.freezes > 0) {
+        calm.set(rc, now);
+        const next = Math.min(cur + 80, 320);
+        if (next !== cur) { rc.jitterBufferTarget = next; line(`smoothing: buffer ${cur} -> ${next} ms after ${v.freezes} freeze(s)`); }
+      } else if (cur > 0 && now - (calm.get(rc) || 0) > 60000) {
+        const next = Math.max(0, cur - 80);
+        rc.jitterBufferTarget = next || null;
+        calm.set(rc, now);
+        line(`smoothing: calm for a minute, buffer ${cur} -> ${next} ms`);
+      }
+    } catch (_) { /* not supported here */ }
+  }
+
+  async function sample() {
+    if (busy || document.hidden || !voicePcs.size) return;
+    busy = true;
+    try {
+      for (const pc of voicePcs) {
+        if (pc.connectionState === 'closed' || pc.connectionState === 'failed') continue;
+        for (const rc of pc.getReceivers()) {
+          const tr = rc.track;
+          if (!tr || tr.kind !== 'video' || tr.readyState !== 'live') continue;
+          const report = await rc.getStats();
+          report.forEach((r) => {
+            if (r.type !== 'inbound-rtp' || r.kind !== 'video' || !r.framesDecoded) return;
+            const p = prev.get(rc);
+            const keys = ['framesDecoded', 'freezeCount', 'totalFreezesDuration', 'framesDropped', 'packetsLost', 'totalDecodeTime', 'jitterBufferDelay', 'jitterBufferEmittedCount'];
+            const raw = {}; for (const k of keys) raw[k] = r[k] || 0;
+            prev.set(rc, raw);
+            if (!p) return;                                   // first look: baseline only
+            const d = (k) => raw[k] - p[k];
+            const dec = d('framesDecoded');
+            if (dec <= 0 || (r.frameWidth || 0) < 640) return; // paused or a small tile
+            const v = {
+              freezes: d('freezeCount'), freezeMs: Math.round(d('totalFreezesDuration') * 1000),
+              dropped: d('framesDropped'), lost: d('packetsLost'),
+              decodeMs: Math.round((d('totalDecodeTime') / dec) * 10000) / 10,
+              bufMs: d('jitterBufferEmittedCount') > 0 ? Math.round((d('jitterBufferDelay') / d('jitterBufferEmittedCount')) * 1000) : -1,
+            };
+            lastSample = Date.now();
+            line(`view ${r.frameWidth}x${r.frameHeight}@${Math.round(r.framesPerSecond || 0)} decoder=${r.decoderImplementation || '?'} decodeMs=${v.decodeMs} freezes=${v.freezes}/${v.freezeMs}ms dropped=${v.dropped} lost=${v.lost} buffer=${v.bufMs}ms target=${rc.jitterBufferTarget || 0}`);
+            tuneBuffer(rc, v);
+          });
+        }
+      }
+    } catch (_) { /* connection closed mid-read */ }
+    busy = false;
+  }
+
+  return {
+    callChanged(on) {
+      clearInterval(timer); timer = 0;
+      if (on) timer = setInterval(sample, 4000);
+    },
+    /** Watching a stream right now (sampled in the last few seconds). */
+    active: () => Date.now() - lastSample < 10000,
+    history: () => [...history],
+  };
+})();
+window.driftcordViewerStats = () => viewerWatch.history();
 
 /** Software encoding: offer Boosted graphics, or say what the result was. */
 let appInfo = null;          // get_info, refreshed when the Stream card opens

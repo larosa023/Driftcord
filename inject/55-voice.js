@@ -20,6 +20,7 @@ function updateCallState() {
   if (now === inCall) return;
   inCall = now;
   try { voiceOverlay.callChanged(now); } catch (_) { /* overlay not loaded yet */ }
+  try { viewerWatch.callChanged(now); } catch (_) { /* not loaded yet */ }
   if (bridge.available()) bridge.invoke('set_in_call', { on: now }).catch(() => {});
   // close() fires no events, so double-check now and then while a call is up.
   clearInterval(callCheck);
@@ -121,7 +122,9 @@ function liftShareParams(p, track) {
   if (e) {
     if (kbps && e.maxBitrate && e.maxBitrate < shareMaxKbps(kbps) * 1000) { e.maxBitrate = shareMaxKbps(kbps) * 1000; changed = true; }
     if (fps && e.maxFramerate && e.maxFramerate < fps) { e.maxFramerate = fps; changed = true; }
-    if ((e.scaleResolutionDownBy || 1) !== adapt.scale) { e.scaleResolutionDownBy = adapt.scale; changed = true; }
+    // A Driftcord share is already shrunk at the capture (see applyCap); don't shrink it twice.
+    const scale = typeof native !== 'undefined' && native && native.video === track ? 1 : adapt.scale;
+    if ((e.scaleResolutionDownBy || 1) !== scale) { e.scaleResolutionDownBy = scale; changed = true; }
   }
   return changed;
 }
