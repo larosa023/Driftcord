@@ -4,6 +4,12 @@
 
 const CHANGELOG = [
   {
+    version: '0.4.53', date: '2026-11-23', title: 'Steadier smooth viewing',
+    items: [
+      ['improved', 'Smooth viewing keeps its extra buffer until the stream has been calm for 5 minutes, then eases off gently, instead of dropping it after one minute and letting the freezes come back.'],
+    ],
+  },
+  {
     version: '0.4.52', date: '2026-11-15', title: 'Smoother streaming and watching',
     items: [
       ['fixed', 'Adaptive quality never stepped in when your PC was the bottleneck: the encoder overload also slowed the capture, which it mistook for a still screen. It now spots an overloaded encoder (time per frame, CPU limits) and eases to 1080p within seconds, keeping a steady frame rate.'],

@@ -413,7 +413,7 @@ const viewerWatch = (() => {
   const prev = new WeakMap();
   const calm = new WeakMap();     // receiver -> time of last freeze
   let timer = 0, busy = false, lastSample = 0;
-  const line = (s) => { history.push(`${new Date().toISOString().slice(11, 19)} ${s}`); if (history.length > 90) history.shift(); };
+  const line = (s) => { history.push(`${new Date().toISOString().slice(11, 19)} ${s}`); if (history.length > 300) history.shift(); };
 
   function tuneBuffer(rc, v) {
     if (store.get('screenshare.smoothViewing') === false || !('jitterBufferTarget' in rc)) return;
@@ -424,11 +424,12 @@ const viewerWatch = (() => {
         calm.set(rc, now);
         const next = Math.min(cur + 80, 320);
         if (next !== cur) { rc.jitterBufferTarget = next; line(`smoothing: buffer ${cur} -> ${next} ms after ${v.freezes} freeze(s)`); }
-      } else if (cur > 0 && now - (calm.get(rc) || 0) > 60000) {
-        const next = Math.max(0, cur - 80);
+      } else if (cur > 0 && now - (calm.get(rc) || 0) > 300000) {
+        // Calm for 5 minutes: ease off gently (a quick drop just invites the freezes back).
+        const next = Math.max(0, cur - 40);
         rc.jitterBufferTarget = next || null;
         calm.set(rc, now);
-        line(`smoothing: calm for a minute, buffer ${cur} -> ${next} ms`);
+        line(`smoothing: calm for 5 minutes, buffer ${cur} -> ${next} ms`);
       }
     } catch (_) { /* not supported here */ }
   }
